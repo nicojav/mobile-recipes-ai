@@ -1,0 +1,8 @@
+{
+  "name": "mobile-recipes-ai",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
+}
