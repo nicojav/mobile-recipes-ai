@@ -28,6 +28,15 @@ acceptance criteria for each milestone, grouped from `CLAUDE.md`'s "Build order"
 - Each step's acceptance criteria are checkboxes. Tick them in place as you verify,
   don't just narrate completion.
 - Update the Status column above as you go (`not started` → `in progress` → `done`).
+- **This is the recovery mechanism after a context reset.** A fresh session with no
+  memory of prior work reads this table first, opens the file for the milestone in
+  progress, and trusts its Status blockquote + checkboxes as ground truth — it will
+  not re-derive state from git history or guess. That only works if the Status
+  column and checkboxes are updated in the same turn the underlying work happens,
+  not after the fact. Before ending any turn that changed code, update both: the
+  Status column here, and the specific checkboxes/blockquote in the milestone file.
+  A milestone that's actually done but still says "not started" is worse than no
+  status at all — it causes a rebuild.
 
 ## Judgment gates
 

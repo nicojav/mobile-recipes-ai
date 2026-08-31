@@ -7,8 +7,9 @@ const workspaceRoot = path.resolve(projectRoot, "../..");
 const config = getDefaultConfig(projectRoot);
 
 // Let Metro see packages/shared (outside apps/mobile) and resolve workspace
-// symlinks back to the monorepo root's node_modules.
-config.watchFolders = [workspaceRoot];
+// symlinks back to the monorepo root's node_modules, on top of (not instead
+// of) Expo's own default watchFolders.
+config.watchFolders = [...(config.watchFolders ?? []), workspaceRoot];
 config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, "node_modules"),
   path.resolve(workspaceRoot, "node_modules"),

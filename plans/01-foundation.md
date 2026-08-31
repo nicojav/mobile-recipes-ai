@@ -19,11 +19,24 @@ by default. No network code exists yet.
 > only for now. See `CLAUDE.md` → Decisions already made for the reasoning.
 > Code samples below reflect the new names.
 
+> **Expo SDK pinned to 54, not latest.** `create-expo-app` originally scaffolded
+> against SDK 57, but the author's phone can only get Expo Go 54.0.8 from Play
+> Store (recent Expo Go releases are pinned 1:1 to a single SDK, and the phone's
+> Android version is below the cutoff for anything newer) — SDK 57 wouldn't open
+> at all. Downgraded `apps/mobile` to `expo@~54.0.37` and every `expo-*`/RN/React
+> package to its SDK 54-matched version via `npx expo install --fix`. This also
+> broke the default template's tab-bar/Explore-tab/animated-splash scaffolding
+> (SDK 57-only APIs) — deleted rather than patched, since none of it was used by
+> the actual app; `_layout.tsx` is now a plain `Stack` with a standard splash
+> hide, no tabs. If a future SDK bump is needed, re-check Expo Go's SDK support
+> on the target device first — this is a recurring constraint, not a one-time fix.
+>
 > **Status: code complete, device verification pending.** Everything below is
 > implemented and typechecks; Metro successfully bundles the app for the
-> Android target (`expo export --platform android`, no errors). What's *not*
-> done: running it on an actual Android phone via Expo Go — that needs the
-> user's device and can't be done from here. See per-step notes.
+> Android target (`expo export --platform android`, no errors); `expo-doctor`
+> passes 18/18. What's *not* done: running it on an actual Android phone via
+> Expo Go — that needs the user's device and can't be done from here. See
+> per-step notes.
 
 ## Why this grouping
 
