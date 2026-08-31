@@ -15,7 +15,7 @@ acceptance criteria for each milestone, grouped from `CLAUDE.md`'s "Build order"
 
 | # | File | Spec build steps | Done when | Status |
 |---|---|---|---|---|
-| 1 | [01-foundation.md](01-foundation.md) | 0–1 | Chip UI with all 30 seed items running on a real phone via Expo Go, no network involved | code complete, device verification pending |
+| 1 | [01-foundation.md](01-foundation.md) | 0–1 | Chip UI with all 30 seed items running on a real phone via Expo Go, no network involved | done |
 | 2 | [02-end-to-end.md](02-end-to-end.md) | 2–3 | Real Gemini suggestions render in the swipeable deck on a real phone | not started |
 | 3 | [03-quality-and-images.md](03-quality-and-images.md) | 4–5 | Scenario harness scores well on all five rubric axes; images swap into cards without blocking render | not started |
 | 4 | [04-hardening.md](04-hardening.md) | 6–7 | Detail view, saved recipes, and `La cociné` work end-to-end; endpoint has a shared secret and a rate limit before the APK leaves the device | not started |

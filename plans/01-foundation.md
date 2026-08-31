@@ -31,12 +31,10 @@ by default. No network code exists yet.
 > hide, no tabs. If a future SDK bump is needed, re-check Expo Go's SDK support
 > on the target device first — this is a recurring constraint, not a one-time fix.
 >
-> **Status: code complete, device verification pending.** Everything below is
-> implemented and typechecks; Metro successfully bundles the app for the
-> Android target (`expo export --platform android`, no errors); `expo-doctor`
-> passes 18/18. What's *not* done: running it on an actual Android phone via
-> Expo Go — that needs the user's device and can't be done from here. See
-> per-step notes.
+> **Status: done.** Verified end-to-end in Expo Go on the author's Android
+> phone: chips render and toggle, state survives a full app restart. `Buscar
+> ideas` doing nothing on tap is expected, not a bug — it gets wired up in
+> milestone 2.
 
 ## Why this grouping
 
@@ -106,10 +104,8 @@ don't discover it in milestone 2.
       imported cleanly in `apps/mobile` (rendered on screen, confirmed via
       `expo start --web` bundle output) and in `apps/worker` (`wrangler dev` +
       curl returned it). Removed once step 1 added the real schema exports.
-- [ ] `npx expo start` boots and Expo Go on a real device loads the default
-      screen — **needs the user's phone**; verified instead via `expo export
-      --platform android`, which bundles cleanly for the real target platform
-      with no resolution errors
+- [x] `npx expo start` boots and Expo Go on a real device loads the default
+      screen — confirmed on the author's phone
 - [x] `npx wrangler dev` boots and responds to a local curl (`Hello World! shared
       says: pong`)
 
@@ -197,22 +193,21 @@ as `t(\`location.${location}\`)` — not a hardcoded `Record` in the component.
 - [x] `packages/shared` exports `Location`, `Item`, and the 30-item seed array
 - [x] Fresh app install seeds SQLite with all 30 items on first launch only
       (`initDb()` checks for an existing row before inserting)
-- [x] All 30 chips render, grouped correctly by the 5 locations (verified by
-      code review + clean Android bundle; visual confirmation needs a device)
+- [x] All 30 chips render, grouped correctly by the 5 locations — confirmed on
+      device
 - [x] `condimentos` and `cajon` groups start collapsed; freezer/heladera/alacena
-      start expanded (`COLLAPSED_BY_DEFAULT` in `index.tsx`)
+      start expanded (`COLLAPSED_BY_DEFAULT` in `index.tsx`) — confirmed on device
 - [x] Tapping a chip toggles active state instantly, no dialog (direct
-      `db.update` + local state update, no confirmation)
-- [ ] Toggled state survives a full app restart — architecturally correct
-      (SQLite is file-backed, not in-memory), **needs a device to confirm**
+      `db.update` + local state update, no confirmation) — confirmed on device
+- [x] Toggled state survives a full app restart — confirmed on device
 - [x] Quick-add free text — implemented as the `notes` composer described
       above, not a new persisted Item (decision documented above)
 - [x] All code identifiers (types, variables, DB columns) are English; only
       `Location` enum values and translated UI content are Spanish
 - [x] UI strings are sourced from the `es-AR` i18next bundle, not hardcoded in
       components
-- [ ] Tested on a real Android device via Expo Go, not the simulator — **not
-      done; requires the user's phone**
+- [x] Tested on a real Android device via Expo Go, not the simulator —
+      confirmed working (chips render and toggle correctly)
 
 ### Spec references
 `CLAUDE.md` → Data model, Seed data, Screens (§1 Mi cocina), Principles #2 (no
