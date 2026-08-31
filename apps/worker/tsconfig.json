@@ -4,12 +4,11 @@
     "lib": ["es2021"],
     "module": "es2022",
     "moduleResolution": "bundler",
-    "types": ["@cloudflare/workers-types"],
     "strict": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true
   },
-  "include": ["src", "../../packages/shared/src"]
+  "include": ["src", "../../packages/shared/src", "worker-configuration.d.ts"]
 }

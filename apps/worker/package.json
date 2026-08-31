@@ -8,10 +8,10 @@
     "cf-typegen": "wrangler types"
   },
   "dependencies": {
-    "@cocina/shared": "*"
+    "@cocina/shared": "*",
+    "zod": "^4.5.1"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20260828.1",
     "typescript": "~6.0.3",
     "wrangler": "^4.127.1"
   }

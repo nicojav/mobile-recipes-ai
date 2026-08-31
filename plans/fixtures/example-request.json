@@ -1,0 +1,10 @@
+{
+  "v": 1,
+  "freezer": ["carne picada", "milanesa de pollo"],
+  "heladera": ["huevos", "queso cremoso", "lechuga", "cebolla de verdeo"],
+  "alacena": ["arroz", "fideos", "salsa de tomate"],
+  "cajon": ["papas", "batata", "cebolla"],
+  "condimentos": "los habituales (ají molido, comino, pimentón, orégano) + harinas 000, 0000 y leudante",
+  "notes": "compré cherry y un morrón",
+  "exclude": ["Tortilla de papa con verdeo"]
+}
