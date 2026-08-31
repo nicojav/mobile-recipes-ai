@@ -1,0 +1,9 @@
+{
+  "v": 1,
+  "freezer": ["milanesa de pollo"],
+  "heladera": ["huevos", "queso cremoso", "lechuga", "tomate"],
+  "alacena": ["arroz", "fideos", "salsa de tomate"],
+  "cajon": ["papas", "cebolla"],
+  "condimentos": "el estante entero de condimentos: ají molido, comino, pimentón dulce y picante, orégano, laurel, nuez moscada, canela, provenzal ya hecho, curry, jengibre en polvo, más harina 000, 0000, leudante y maicena",
+  "exclude": []
+}

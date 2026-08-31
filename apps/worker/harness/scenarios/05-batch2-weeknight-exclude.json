@@ -1,0 +1,15 @@
+{
+  "v": 1,
+  "freezer": ["carne picada", "milanesa de pollo"],
+  "heladera": ["huevos", "queso cremoso", "lechuga", "cebolla de verdeo", "zanahoria", "leche"],
+  "alacena": ["arroz", "fideos", "salsa de tomate", "aceite de girasol"],
+  "cajon": ["papas", "batata", "cebolla"],
+  "condimentos": "los habituales (ají molido, comino, pimentón, orégano) + harinas 000, 0000 y leudante",
+  "exclude": [
+    "Tortilla de papas y cebolla al estilo criollo",
+    "Arroz con carne picada y verduras",
+    "Milanesas de pollo al horno con puré de batata",
+    "Fideos con salsa de tomate y carne picada",
+    "Empanadas de carne y huevo con masa casera"
+  ]
+}

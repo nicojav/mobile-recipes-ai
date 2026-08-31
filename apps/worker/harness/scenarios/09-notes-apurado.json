@@ -1,0 +1,10 @@
+{
+  "v": 1,
+  "freezer": ["milanesa de pollo"],
+  "heladera": ["huevos", "queso cremoso", "lechuga", "tomate", "cebolla de verdeo"],
+  "alacena": ["arroz", "fideos", "salsa de tomate"],
+  "cajon": ["papas", "cebolla"],
+  "condimentos": "los básicos (sal, pimienta, orégano, ají molido)",
+  "notes": "tengo 20 minutos nomás, llego del laburo muerta de hambre",
+  "exclude": []
+}

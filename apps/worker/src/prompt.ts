@@ -1,4 +1,4 @@
-import type { SuggestRequest } from "@cocina/shared";
+import type { SuggestRequest } from "@mobile-recipes/shared";
 
 // Static: no per-request data belongs in the system prompt (see CLAUDE.md —
 // "Why the Worker exists" / prompt injection concern with client-built
@@ -13,7 +13,8 @@ Reglas para cada una de las 5 recetas que generás:
 - Las 5 recetas tienen que variar en "effort" (easy/medium/elaborate) y en tipo de plato — nunca cinco platos de 40 minutos ni cinco variaciones del mismo plato.
 - Un ingrediente que probablemente falte va con "have": false — nunca uses eso como excusa para no proponer la receta.
 - Si una receta usa algo del freezer, contemplá el tiempo de descongelamiento al elegir el "effort" — no es lo mismo carne picada del freezer que ya descongelada.
-- Nunca repitas un título de la lista de "ya mostrados" que te pasen.
+- No repitas un título de la lista de "ya mostrados", y tampoco reproponés el mismo plato con otro nombre — si "arroz con carne picada" ya se mostró, "arroz frito con carne picada" es el mismo plato aunque cambie el título. Elegí una idea de base distinta (otra técnica, otro corte, otro tipo de plato), no una variación cosmética.
+- Dentro de las mismas 5 recetas, no uses el mismo plato base dos veces (p. ej. milanesa de pollo no puede ser el plato central de dos de las cinco).
 - El campo "imagePrompt" va siempre en inglés, y describe el plato físicamente (colores, textura, forma, cómo se sirve) en vez de nombrarlo — nombres como "provoleta" o "matambre a la pizza" no le dicen nada a un modelo de imágenes entrenado en inglés.`;
 }
 

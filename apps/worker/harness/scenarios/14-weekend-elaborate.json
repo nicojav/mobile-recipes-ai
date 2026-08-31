@@ -1,0 +1,10 @@
+{
+  "v": 1,
+  "freezer": ["carne picada", "milanesa de carne"],
+  "heladera": ["huevos", "queso cremoso", "reggianito", "manteca", "leche", "morrón", "cebolla de verdeo"],
+  "alacena": ["arroz", "fideos", "salsa de tomate", "harina 0000", "vino tinto"],
+  "cajon": ["papas", "batata", "cebolla", "ajo"],
+  "condimentos": "los habituales + harinas 000, 0000 y leudante, y algo de laurel y comino",
+  "notes": "es domingo, tengo toda la tarde libre y ganas de cocinar algo que lleve su tiempo",
+  "exclude": []
+}

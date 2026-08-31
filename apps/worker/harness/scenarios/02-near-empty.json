@@ -1,0 +1,9 @@
+{
+  "v": 1,
+  "freezer": [],
+  "heladera": ["huevos"],
+  "alacena": ["fideos"],
+  "cajon": [],
+  "condimentos": "sal nomás",
+  "exclude": []
+}

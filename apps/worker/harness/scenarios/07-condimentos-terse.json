@@ -1,0 +1,9 @@
+{
+  "v": 1,
+  "freezer": [],
+  "heladera": ["huevos", "queso cremoso", "morrón", "cebolla de verdeo"],
+  "alacena": ["arroz", "fideos"],
+  "cajon": ["papas", "cebolla"],
+  "condimentos": "sal, aceite, pimienta",
+  "exclude": []
+}

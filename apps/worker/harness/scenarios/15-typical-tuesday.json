@@ -1,0 +1,10 @@
+{
+  "v": 1,
+  "freezer": ["milanesa de pollo"],
+  "heladera": ["huevos", "queso cremoso", "lechuga", "cebolla de verdeo", "zanahoria"],
+  "alacena": ["fideos", "arroz", "salsa de tomate"],
+  "cajon": ["papas", "cebolla"],
+  "condimentos": "los habituales (ají molido, comino, pimentón, orégano) + harinas 000, 0000 y leudante",
+  "notes": "compré unos champiñones que se me van a poner feos si no los uso",
+  "exclude": []
+}

@@ -1,0 +1,9 @@
+{
+  "v": 1,
+  "freezer": ["milanesa de pollo", "carne picada", "tapas de empanada", "espinaca congelada"],
+  "heladera": [],
+  "alacena": [],
+  "cajon": [],
+  "condimentos": "los básicos (sal, pimienta, orégano, ajo en polvo)",
+  "exclude": []
+}

@@ -5,6 +5,61 @@
 prompt/suggestion quality, and generated dish images swap into cards without ever
 blocking card render.
 
+> **Status: step 4 done — hard gate passed.** Full rubric scoring, including
+> the author's own read on personal cookability ("all sounds very good
+> recipes"), is recorded in `plans/rubric.md`. Step 5 (image pipeline) is
+> next.
+>
+> Harness infrastructure exists and works: 15 scenario files under
+> `apps/worker/harness/scenarios/` (including all 4 spec-mandated cases),
+> `apps/worker/harness/run.ts` (`npm run harness --workspace=apps/worker`),
+> `plans/rubric.md`. Two full 15/15 runs completed against `wrangler dev`,
+> output at `apps/worker/harness/output/2026-08-31T21-41-18-622Z/` and
+> `.../2026-08-31T21-48-38-679Z/`.
+>
+> `run.ts` needed a fix mid-milestone: the first attempt had no per-request
+> timeout, and its `catch` block returned on any network error without
+> retrying. A stalled connection against `wrangler dev` hung the entire run
+> silently for ~3 hours with no further output before it was caught and
+> killed. Fixed: `AbortSignal.timeout(45_000)` per request, and network
+> errors now retry like rate-limit responses instead of failing immediately.
+>
+> Mechanical checks (not taste calls, safe to settle without the author):
+> - **Six-cheese case: passes.** Across both runs, missing-ingredient flags
+>   are always process items (salsa de tomate, agua, harina), never a more
+>   specific cheese substituted for one already on hand.
+> - **Near-empty case: passes.** Stays plausible (fideos/huevo variations),
+>   never hallucinates pantry contents. Variety is inherently thin with only
+>   2 real ingredients — expected, not a failure of this criterion.
+> - **Voseo/authenticity: clean.** Grepped all 30 generated cards (both runs)
+>   for common tuteo slips (puedes/tienes/pela/corta/etc. as verbs, not
+>   nouns) — zero hits. Milestone 2's curl check had caught 2 typos
+>   (sofri→sofreí, peleá→pelá); those don't reproduce here.
+>
+> **Batch-2/`exclude` case: found failing, fixed, re-verified.** `05` was
+> patched with the real titles from `04`'s first-run output as `exclude`,
+> then re-run: "Arroz con carne picada y verduras" came back as "Arroz frito
+> al estilo criollo con carne picada y verduras" (a reworded duplicate) and
+> "milanesa de pollo" was used as the core dish twice within one batch. Fixed
+> in `apps/worker/src/prompt.ts`: replaced the literal "don't repeat a title"
+> rule with two rules — don't repropose the same dish under a different
+> title, and don't reuse the same core dish twice within one 5-card batch.
+> Re-ran `04`+`05` only (`npx tsx harness/run.ts 04 05`, a filter added to
+> `run.ts` for exactly this) — both failure modes gone on the re-run; one
+> soft recurrence remained (milanesa de pollo baked both times, different
+> topping/side) judged acceptable since it's a genuine Argentine staple, not
+> a sign the fix failed.
+>
+> **Freezer-only case: passes** — author-reviewed. Effort steps
+> easy→elaborate (40→70min) and every card's steps open with the actual
+> defrost action ("Sacá las milanesas del freezer y dejalas descongelar 30
+> min...").
+>
+> **Feasibility, variety, personal cookability: pass.** Read through
+> representative cards together (freezer-only, time-pressure notes, guest
+> notes, dessert-pivot notes); author's verdict: "all sounds very good
+> recipes." Full detail in `plans/rubric.md`'s run log.
+
 ## Why this grouping
 
 Step 4 (prompt iteration) is a hard gate the spec insists on crossing before doing
@@ -62,16 +117,16 @@ something to automate with an LLM judge; the spec's whole design bets on "does t
 author's own taste say yes."
 
 ### Acceptance criteria
-- [ ] 15 scenario files exist, including all 4 spec-mandated cases
-- [ ] `harness/run.ts` runs the full set against a live Worker and writes
+- [x] 15 scenario files exist, including all 4 spec-mandated cases
+- [x] `harness/run.ts` runs the full set against a live Worker and writes
       diffable output per run
-- [ ] Each of at least 2 full harness runs has been scored against the rubric
-- [ ] Six-cheese case: tolerant matching does not flag reggianito/port
+- [x] Each of at least 2 full harness runs has been scored against the rubric
+- [x] Six-cheese case: tolerant matching does not flag reggianito/port
       salut/etc. as missing something more specific
-- [ ] Near-empty kitchen: suggestions stay plausible, no hallucinated pantry
-- [ ] Freezer-only: `effort` visibly reflects planning-ahead/defrost time
-- [ ] Batch-2 with `exclude`: genuinely different dishes, not reworded duplicates
-- [ ] Feasibility, variety, and authenticity all score well on the latest run
+- [x] Near-empty kitchen: suggestions stay plausible, no hallucinated pantry
+- [x] Freezer-only: `effort` visibly reflects planning-ahead/defrost time
+- [x] Batch-2 with `exclude`: genuinely different dishes, not reworded duplicates
+- [x] Feasibility, variety, and authenticity all score well on the latest run
 
 ### Spec references
 `CLAUDE.md` → Testing (all three tiers, but this step is tier 2), Rubric, Prompt

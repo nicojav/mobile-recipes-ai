@@ -1,0 +1,18 @@
+{
+  "v": 1,
+  "freezer": ["milanesa de carne"],
+  "heladera": [
+    "reggianito",
+    "port salut",
+    "queso cremoso",
+    "muzzarella",
+    "queso crema",
+    "provolone",
+    "huevos",
+    "manteca"
+  ],
+  "alacena": ["fideos", "harina 0000", "pan rallado"],
+  "cajon": ["papas", "cebolla"],
+  "condimentos": "los básicos (sal, pimienta, orégano, nuez moscada) + aceite de oliva",
+  "exclude": []
+}

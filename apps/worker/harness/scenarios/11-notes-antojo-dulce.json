@@ -1,0 +1,10 @@
+{
+  "v": 1,
+  "freezer": [],
+  "heladera": ["huevos", "leche", "manteca", "queso crema"],
+  "alacena": ["harina 0000", "azúcar", "harina leudante"],
+  "cajon": ["banana"],
+  "condimentos": "esencia de vainilla, canela, cacao amargo",
+  "notes": "tengo ganas de algo dulce, no de comida salada",
+  "exclude": []
+}

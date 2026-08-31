@@ -5,13 +5,15 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "cf-typegen": "wrangler types"
+    "cf-typegen": "wrangler types",
+    "harness": "tsx harness/run.ts"
   },
   "dependencies": {
-    "@cocina/shared": "*",
+    "@mobile-recipes/shared": "*",
     "zod": "^4.5.1"
   },
   "devDependencies": {
+    "tsx": "^4.19.2",
     "typescript": "~6.0.3",
     "wrangler": "^4.127.1"
   }

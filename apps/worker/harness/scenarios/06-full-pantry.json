@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "freezer": ["carne picada", "milanesa de pollo", "milanesa de carne", "tapas de tarta"],
+  "heladera": [
+    "huevos",
+    "queso cremoso",
+    "queso crema",
+    "reggianito",
+    "muzzarella",
+    "lechuga",
+    "tomate",
+    "zanahoria",
+    "cebolla de verdeo",
+    "leche",
+    "manteca",
+    "jamón cocido"
+  ],
+  "alacena": ["arroz", "fideos", "salsa de tomate", "lentejas", "harina 0000", "atún en lata", "aceite de oliva"],
+  "cajon": ["papas", "batata", "cebolla", "ajo", "zapallo"],
+  "condimentos": "el cajón de condimentos completo — ají molido, comino, pimentón, orégano, laurel, nuez moscada, curry — más harinas 000, 0000 y leudante",
+  "exclude": []
+}
