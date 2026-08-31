@@ -16,7 +16,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import type { Card } from '@cocina/shared';
+import type { Card } from '@mobile-recipes/shared';
 
 import { fetchSuggestions } from '@lib/api';
 import { ThemedText } from '@/components/themed-text';

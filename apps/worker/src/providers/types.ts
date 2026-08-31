@@ -1,4 +1,4 @@
-import type { Card, SuggestRequest } from "@cocina/shared";
+import type { Card, SuggestRequest } from "@mobile-recipes/shared";
 
 export interface CardProvider {
   readonly name: string;

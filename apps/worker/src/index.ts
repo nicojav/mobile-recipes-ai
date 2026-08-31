@@ -1,4 +1,4 @@
-import { SuggestRequest } from "@cocina/shared";
+import { SuggestRequest } from "@mobile-recipes/shared";
 import { activeProvider, ProviderError } from "./providers";
 
 export default {

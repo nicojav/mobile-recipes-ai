@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Card } from "@cocina/shared";
+import { Card } from "@mobile-recipes/shared";
 import { ProviderError } from "./types";
 
 // Every provider is asked for exactly this shape, wrapped in an object — "v"

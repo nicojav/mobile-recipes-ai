@@ -1,5 +1,5 @@
 {
-  "name": "@cocina/shared",
+  "name": "@mobile-recipes/shared",
   "private": true,
   "version": "0.0.1",
   "main": "src/index.ts",

@@ -1,9 +1,9 @@
 import { openDatabaseSync } from "expo-sqlite";
 import { drizzle } from "drizzle-orm/expo-sqlite";
-import { seedItems } from "@cocina/shared";
+import { seedItems } from "@mobile-recipes/shared";
 import { items, savedRecipes } from "./schema";
 
-const sqlite = openDatabaseSync("cocina.db");
+const sqlite = openDatabaseSync("recipes.db");
 export const db = drizzle(sqlite, { schema: { items, savedRecipes } });
 
 export function initDb() {

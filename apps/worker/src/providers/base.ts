@@ -1,4 +1,4 @@
-import type { Card, SuggestRequest } from "@cocina/shared";
+import type { Card, SuggestRequest } from "@mobile-recipes/shared";
 import { parseCardsPayload } from "./schema";
 import { ProviderError, type CardProvider } from "./types";
 

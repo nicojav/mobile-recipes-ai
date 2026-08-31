@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { SuggestRequest } from "@cocina/shared";
+import type { SuggestRequest } from "@mobile-recipes/shared";
 import { buildSystemPrompt, buildUserPrompt } from "../prompt";
 import { BaseCardProvider } from "./base";
 import { CardsPayload } from "./schema";

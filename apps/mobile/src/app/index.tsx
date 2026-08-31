@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { asc, eq } from 'drizzle-orm';
 import { useTranslation } from 'react-i18next';
 import { router } from 'expo-router';
-import { Location, type Item } from '@cocina/shared';
+import { Location, type Item } from '@mobile-recipes/shared';
 
 import { db, initDb } from '@db/client';
 import { items as itemsTable } from '@db/schema';

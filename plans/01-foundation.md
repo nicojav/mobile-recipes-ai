@@ -69,7 +69,7 @@ Root `package.json`:
 }
 ```
 
-`packages/shared/package.json` — name it `@cocina/shared`; `main`/`types` point at
+`packages/shared/package.json` — name it `@mobile-recipes/shared`; `main`/`types` point at
 `src/index.ts` (or a build output if the tooling needs one — prefer no build step,
 consumed as TS source, since both Metro and Wrangler can do that).
 

@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { SuggestRequest, SuggestResponse, type Card, type Item, type Location } from '@cocina/shared';
+import { SuggestRequest, SuggestResponse, type Card, type Item, type Location } from '@mobile-recipes/shared';
 
 import { db } from '@db/client';
 import { items as itemsTable } from '@db/schema';
