@@ -18,4 +18,25 @@ export const esAR = {
     condimentos: "Condimentos",
     cajon: "Cajón",
   },
+  // Display labels only — Card.effort's wire values (easy/medium/elaborate)
+  // stay English; this is what the deck's effort badge shows instead.
+  effort: {
+    easy: "Fácil",
+    medium: "Media",
+    elaborate: "Elaborada",
+  },
+  deck: {
+    counter: "{{current}} de {{total}}",
+    minutes: "{{count}} min",
+    missing: "Te falta:",
+    loadingLines: [
+      "Pensando qué darte de comer…",
+      "Mirando bien lo que tenés…",
+      "Ya casi…",
+    ],
+    error: "No se pudo conectar. Probá de nuevo.",
+    retry: "Reintentar",
+    discard: "Descartar",
+    like: "Me gusta",
+  },
 } as const;

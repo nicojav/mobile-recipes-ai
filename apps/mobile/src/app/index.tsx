@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { asc, eq } from 'drizzle-orm';
 import { useTranslation } from 'react-i18next';
+import { router } from 'expo-router';
 import { Location, type Item } from '@cocina/shared';
 
 import { db, initDb } from '@db/client';
@@ -92,7 +93,10 @@ export default function KitchenScreen() {
           ))}
         </View>
 
-        <Pressable style={[styles.cta, { backgroundColor: theme.text }]} onPress={() => {}}>
+        <Pressable
+          style={[styles.cta, { backgroundColor: theme.text }]}
+          onPress={() => router.push({ pathname: '/deck', params: { notes } })}
+        >
           <ThemedText style={{ color: scheme === 'dark' ? Colors.dark.background : Colors.light.background }} type="smallBold">
             {t('kitchen.findIdeas')}
           </ThemedText>
