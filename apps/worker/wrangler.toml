@@ -5,3 +5,7 @@ compatibility_flags = ["nodejs_compat"]
 
 [ai]
 binding = "AI"
+
+[[r2_buckets]]
+binding = "RECIPE_IMAGES"
+bucket_name = "mobile-recipes-images"

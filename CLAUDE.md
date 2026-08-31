@@ -138,12 +138,29 @@ iteration ships without a Play Store release.
 
 - Workers: 100k req/day, 10ms CPU per request. CPU time excludes waiting on
   fetch, so a proxy uses ~1–2ms. Never the bottleneck.
-- Groq free tier (active provider): 14,400 req/day, 30 req/min, no card.
-  **This is the current binding constraint.**
+- Groq free tier (active provider): 14,400 req/day, 30 req/min, **8,000
+  tokens/min**, no card. The token-per-minute cap is the one that actually
+  bites — a 5-card suggestion response runs ~4,000–5,000 tokens, so two
+  calls inside the same minute (e.g. an initial batch plus the deck's own
+  prefetch-at-2-remaining) is enough to blow the budget, well before the
+  request-count allowances (14,400/day, 30/min) come anywhere close. Confirmed
+  repeatedly during milestone 3 harness runs and on-device testing — see
+  `apps/mobile/lib/api.ts`'s retry/backoff, added specifically because this
+  is a normal transient condition, not an edge case. **This is the current
+  binding constraint.** If evaluating a replacement provider later, check its
+  tokens/minute ceiling specifically, not just its request-count limits.
 - Gemini Flash-Lite free tier: ~1,000 req/day — tighter than Groq's, would
   become binding again if switched back.
-- Workers AI: 10,000 neurons/day ≈ 2,000 images at 512×512 (image generation;
-  also hosts free LLMs, see Architecture above).
+- Workers AI: 10,000 neurons/day ≈ **~170 images/day**, not the ~2,000 an
+  earlier draft assumed. `@cf/black-forest-labs/flux-1-schnell` takes no
+  width/height input at all — it always outputs 1024×1024 (4 tiles), and at
+  4.80 neurons/tile + 9.60 neurons/step × 4 default steps, that's ~57.6
+  neurons/image (verified against Cloudflare's current pricing page during
+  milestone 3 step 5, not assumed). Still comfortably enough for a
+  single-user prototype with per-dish caching (see Image pipeline) — this
+  would only become binding if the R2 cache-check ever broke and started
+  regenerating on every request. Also hosts free LLMs, see Architecture
+  above.
 - R2: 10GB free, no egress charges.
 
 Everything must stay free at prototype scale. When the active provider's cap
@@ -260,10 +277,17 @@ Cards without images fail the core experience. This is a required feature.
 **Generate per dish, not per card.** Recipes repeat constantly.
 
 ```
-key = slugify(title)           →  tortilla-de-papa-con-verdeo.webp
+key = slugify(title)           →  tortilla-de-papa-con-verdeo.jpg
 R2 hit  → return URL immediately
-R2 miss → FLUX.1 schnell @ 512×512 → store in R2 → return URL
+R2 miss → FLUX.1 schnell (1024×1024, no size param — see Free tier ceilings)
+        → store in R2 as JPEG → return URL
 ```
+
+Card render and image generation are decoupled: `/suggest` attaches each
+card's `imageUrl` (a `GET /img/<key>?prompt=<imagePrompt>` URL) synchronously
+— no FLUX call, no wait. Generate-or-cache-hit happens lazily, only when the
+client actually requests that URL, which is what lets the card render
+immediately regardless of whether its image is cached yet.
 
 After a few weeks of use, most suggestions hit cache and daily generation
 approaches zero.

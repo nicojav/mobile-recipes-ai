@@ -16,7 +16,8 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import type { Card } from '@mobile-recipes/shared';
+import { Image } from 'expo-image';
+import type { CardWithImage as Card } from '@mobile-recipes/shared';
 
 import { fetchSuggestions } from '@lib/api';
 import { ThemedText } from '@/components/themed-text';
@@ -54,6 +55,14 @@ export default function DeckScreen() {
     try {
       const next = await fetchSuggestions(notes, shownTitles.current);
       shownTitles.current = [...shownTitles.current, ...next.map((c) => c.title)];
+      // Fire all 5 image requests concurrently as soon as the batch is
+      // known — whether it's shown immediately or held as a prefetched-ahead
+      // batch, the Worker should already be generating/caching by the time
+      // any card needs its image. Never awaited: a failed prefetch just
+      // means the <Image> in SwipeCard loads it lazily instead — see
+      // CLAUDE.md's Image pipeline section ("never block the card on the
+      // image").
+      Image.prefetch(next.map((card) => card.imageUrl)).catch(() => {});
       return next;
     } catch {
       return null;
@@ -238,6 +247,9 @@ const SwipeCard = forwardRef<SwipeCardHandle, { card: Card; onSwipe: () => void 
       <Animated.View style={[styles.card, { backgroundColor: theme.backgroundElement }, cardStyle]}>
         <View style={[styles.imagePlaceholder, { backgroundColor: theme.backgroundSelected }]}>
           <ThemedText style={styles.imagePlaceholderGlyph}>🍳</ThemedText>
+          {/* Absolute over the emoji placeholder — the placeholder stays visible
+              underneath (and thus unblocking) until this cross-dissolves in. */}
+          <Image source={{ uri: card.imageUrl }} style={StyleSheet.absoluteFill} contentFit="cover" transition={300} />
         </View>
 
         <Animated.View style={[styles.stamp, styles.likeStamp, likeStampStyle]}>

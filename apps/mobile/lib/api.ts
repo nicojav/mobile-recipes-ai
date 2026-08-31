@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { SuggestRequest, SuggestResponse, type Card, type Item, type Location } from '@mobile-recipes/shared';
+import { SuggestRequest, SuggestResponse, type CardWithImage, type Item, type Location } from '@mobile-recipes/shared';
 
 import { db } from '@db/client';
 import { items as itemsTable } from '@db/schema';
@@ -23,7 +23,46 @@ function joinSpanish(items: string[]): string {
   return `${items.slice(0, -1).join(', ')} y ${items[items.length - 1]}`;
 }
 
-export async function fetchSuggestions(notes: string, exclude: string[]): Promise<Card[]> {
+const MAX_SUGGEST_ATTEMPTS = 3;
+const DEFAULT_RETRY_DELAY_MS = 5_000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Groq's free tier (30 req/min, but 8,000 tokens/min is the tighter real
+// limit — see CLAUDE.md → Free tier ceilings, "the current binding
+// constraint") means a 502 here is a normal transient condition during real
+// use, not just under test load. Same "try again in Ns" hint the harness
+// (apps/worker/harness/run.ts) parses, since the Worker forwards Groq's raw
+// error body through untouched.
+function retryDelayMs(body: string): number {
+  const match = body.match(/try again in ([\d.]+)s/i);
+  if (!match) return DEFAULT_RETRY_DELAY_MS;
+  return Math.ceil(parseFloat(match[1]) * 1000) + 1000;
+}
+
+async function postSuggest(body: SuggestRequest): Promise<unknown> {
+  for (let attempt = 1; attempt <= MAX_SUGGEST_ATTEMPTS; attempt++) {
+    const res = await fetch(`${WORKER_URL}/suggest`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (res.ok) return res.json();
+
+    const text = await res.text();
+    const isRetryable = res.status === 429 || res.status === 502;
+    if (!isRetryable || attempt === MAX_SUGGEST_ATTEMPTS) {
+      throw new Error(`suggest request failed: ${res.status}`);
+    }
+    await sleep(retryDelayMs(text));
+  }
+  // Unreachable — the loop above always returns or throws by the last attempt.
+  throw new Error('suggest request failed: exhausted retries');
+}
+
+export async function fetchSuggestions(notes: string, exclude: string[]): Promise<CardWithImage[]> {
   const active = db.select().from(itemsTable).where(eq(itemsTable.active, true)).all() as Item[];
 
   const body = SuggestRequest.parse({
@@ -37,15 +76,6 @@ export async function fetchSuggestions(notes: string, exclude: string[]): Promis
     exclude: exclude.length > 0 ? exclude : undefined,
   });
 
-  const res = await fetch(`${WORKER_URL}/suggest`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-
-  if (!res.ok) {
-    throw new Error(`suggest request failed: ${res.status}`);
-  }
-
-  return SuggestResponse.parse(await res.json()).cards;
+  const json = await postSuggest(body);
+  return SuggestResponse.parse(json).cards;
 }

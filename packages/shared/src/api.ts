@@ -45,8 +45,18 @@ export const Card = z.object({
 });
 export type Card = z.infer<typeof Card>;
 
+// The Worker attaches this after the LLM call returns — providers validate
+// their raw output against Card (above), never CardWithImage, since no
+// provider produces an image. Layered on top rather than a field on Card
+// itself so the two validation targets can't drift into requiring the same
+// thing at the wrong stage. See CLAUDE.md's Image pipeline section.
+export const CardWithImage = Card.extend({
+  imageUrl: z.string(),
+});
+export type CardWithImage = z.infer<typeof CardWithImage>;
+
 export const SuggestResponse = z.object({
   v: z.literal(1),
-  cards: z.array(Card).length(5),
+  cards: z.array(CardWithImage).length(5),
 });
 export type SuggestResponse = z.infer<typeof SuggestResponse>;

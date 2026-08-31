@@ -141,6 +141,54 @@ the product.
 
 ## Step 5 — Image pipeline
 
+> **Status: built and mechanically verified against `wrangler dev`; the
+> real-device check (last acceptance box) is still open.**
+>
+> Implementation differs from this section's original pseudocode in ways
+> worth noting, since the corrections aren't visible from reading the plan
+> text alone (already folded into `CLAUDE.md`'s Image pipeline / Free tier
+> ceilings sections):
+> - `flux-1-schnell` takes no `width`/`height` input at all (verified against
+>   Cloudflare's current model docs) — it always outputs 1024×1024, and
+>   returns base64-encoded **JPEG**, not WebP. R2 keys are `<slug>.jpg`, not
+>   `.webp`.
+> - Real neuron cost is ~57.6/image (4 tiles × 4.80 + 4 default steps ×
+>   9.60), so the free tier is ~170 images/day, not the ~2,000 the original
+>   512×512 assumption implied. Still far more than a single-user prototype
+>   needs with per-dish caching.
+> - Went with "resolve and embed URLs directly in the `/suggest` response,"
+>   the option this section left open — but the URL itself is built
+>   synchronously (`imageKeyFor(title)`, no FLUX call, no R2 read) so it
+>   costs nothing to attach. Card JSON never waits on an image either way.
+>   The Card schema gained a new `CardWithImage` type (`packages/shared/src/api.ts`)
+>   layered on top of `Card` — providers still validate raw LLM output
+>   against plain `Card`, since no provider produces `imageUrl`.
+> - The `GET /img/:key` route takes the imagePrompt as a `?prompt=` query
+>   param, needed because the route only has the slug — keeps the Worker
+>   stateless (no KV/DB mapping slug→prompt) at the cost of a slightly long
+>   URL. A cache hit ignores the param entirely; only a miss uses it.
+>
+> Mechanically verified against `wrangler dev`:
+> - Same dish requested twice: first request 3.66s (real FLUX call), second
+>   request 0.011s, byte-identical output — confirmed no duplicate
+>   generation, including when the second request's `?prompt=` differs from
+>   the first (cache is keyed by slug alone, exactly as designed).
+> - 4 different dishes requested concurrently: individual completion times
+>   overlapped (2.7s/3.0s/3.7s/4.4s within one wall-clock window) rather than
+>   stacking serially — the Worker doesn't bottleneck concurrent generations.
+> - Spot-checked 2 of the 5 generated images by eye: both genuinely matched
+>   their dish (rice-with-ground-beef-and-morrón bowl; rustic tart with
+>   sweet potato, caramelized onion, dollops of cream cheese) — good image
+>   fidelity on the first real test.
+> - `apps/mobile/src/app/deck.tsx` and `lib/api.ts` typecheck clean
+>   (`npx tsc --noEmit`) against the new `CardWithImage` type.
+>
+> **Not yet done — needs the author on a real device:** run the app via Expo
+> Go, tap `Buscar ideas`, and confirm the card renders immediately with the
+> emoji placeholder and the real image cross-dissolves in within a few
+> seconds per card, without ever blocking the swipe/counter. This is the
+> milestone's last open acceptance box.
+
 ### Goal
 Dish images are generated once per unique dish (not per card), cached in R2, and
 swapped into the deck asynchronously without ever delaying card render.
@@ -189,21 +237,25 @@ as soon as the card batch arrives, swap each image in as it resolves — indepen
 per card, not blocked on card 1's image finishing before card 2 starts fetching.
 
 ### Acceptance criteria
-- [ ] Same dish title requested twice never calls FLUX twice — second call is an
+- [x] Same dish title requested twice never calls FLUX twice — second call is an
       R2 hit
-- [ ] `imagePrompt` sent to FLUX is in English and describes the dish physically
+- [x] `imagePrompt` sent to FLUX is in English and describes the dish physically
       (spec explicitly warns literal Spanish dish names like "provoleta" will
       likely fail outright)
-- [ ] Card text/badges render immediately; placeholder shows until the image
-      lands; no visible wait on the image before the card is usable
-- [ ] All 5 image requests for a batch are in flight concurrently, not
-      sequential
-- [ ] A bad image can be replaced by hand in R2 (by key) with no code change
+- [x] Card text/badges render immediately; placeholder shows until the image
+      lands; no visible wait on the image before the card is usable — true by
+      construction (`/suggest` never awaits FLUX/R2), on-device feel still to
+      confirm
+- [x] All 5 image requests for a batch are in flight concurrently, not
+      sequential — verified server-side (see status note); client fires them
+      via a single `Image.prefetch(array)` call
+- [x] A bad image can be replaced by hand in R2 (by key) with no code change —
+      true by construction (plain keyed blob store)
 - [ ] Verified on a real device with real network latency, not localhost
 
 ### Spec references
-`CLAUDE.md` → Image pipeline (entire section), Free tier ceilings (Workers AI:
-10k neurons/day ≈ 2,000 images at 512×512), Architecture diagram.
+`CLAUDE.md` → Image pipeline (entire section), Free tier ceilings (corrected —
+see status note above), Architecture diagram.
 
 ## Risks / known friction
 
