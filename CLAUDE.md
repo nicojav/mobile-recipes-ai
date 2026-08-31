@@ -30,11 +30,9 @@ should point at it, not repeat it.
 **When you finish a task that changed any of the above, say so and offer the
 edit.** Don't wait to be asked.
 
-Sections expected to shrink as the build progresses: seed data (once
-`packages/shared/src/seed.ts` exists), the request/response examples (once the
-shared Zod schemas exist), and the build order (delete completed steps). The
-principles, free-tier ceilings, and the don't-relitigate list stay permanently —
-none of them are recoverable from reading the code.
+The build order is expected to shrink as steps complete (delete finished ones).
+The principles, free-tier ceilings, and the don't-relitigate list stay
+permanently — none of them are recoverable from reading the code.
 
 ## Principles — read these before making design calls
 
@@ -107,16 +105,29 @@ Expo app (React Native, expo-router, expo-sqlite)
 Cloudflare Worker  ──►  R2 (image cache)
         │               Workers AI / FLUX.1 schnell
         ▼
-Gemini 2.5 Flash-Lite (structured JSON)
+LLM provider (structured JSON) — swappable, see below
 ```
 
 The app holds all state locally and works offline except when requesting
 suggestions. The Worker is stateless — every request carries its own context.
 
+**The LLM call goes through a `CardProvider` interface**
+(`apps/worker/src/providers/`), not a hardcoded Gemini call. `index.ts` only
+ever calls `activeProvider.generateCards(...)` — which provider that is is a
+one-line switch in `providers/index.ts`. This exists because both of the free
+options hit real, unrelated platform bugs on first use (Gemini: an unresolved
+Google-side billing-sync bug; Workers AI: a fresh-account `InferenceUpstreamError`)
+within the same afternoon — see `plans/02-end-to-end.md` for the incident
+detail. Groq is the active provider for now; `gemini` and `workers-ai` stay
+registered so switching back (or picking whichever scores best on the
+milestone 3 rubric) is a one-line change, not a rewrite.
+
 ### Why the Worker exists
 
-The Gemini API key must never ship in the APK. The Worker holds it as a secret
-(`wrangler secret put GEMINI_KEY`) and is the only thing that talks to Gemini.
+The active provider's API key must never ship in the APK. The Worker holds it
+as a secret (`wrangler secret put GROQ_KEY`, or `GEMINI_KEY` if that provider
+is active — Workers AI needs no secret, it's an account binding) and is the
+only thing that talks to it.
 
 **Build the prompt inside the Worker, not the app.** The client sends structured
 data only. If the client sent the prompt, anyone could hit the endpoint and use
@@ -127,12 +138,17 @@ iteration ships without a Play Store release.
 
 - Workers: 100k req/day, 10ms CPU per request. CPU time excludes waiting on
   fetch, so a proxy uses ~1–2ms. Never the bottleneck.
-- Gemini Flash-Lite free tier: ~1,000 req/day. **This is the binding constraint.**
-- Workers AI: 10,000 neurons/day ≈ 2,000 images at 512×512.
+- Groq free tier (active provider): 14,400 req/day, 30 req/min, no card.
+  **This is the current binding constraint.**
+- Gemini Flash-Lite free tier: ~1,000 req/day — tighter than Groq's, would
+  become binding again if switched back.
+- Workers AI: 10,000 neurons/day ≈ 2,000 images at 512×512 (image generation;
+  also hosts free LLMs, see Architecture above).
 - R2: 10GB free, no egress charges.
 
-Everything must stay free at prototype scale. When Gemini's cap becomes the
-limit, the fix is a billing flag — not an architecture change.
+Everything must stay free at prototype scale. When the active provider's cap
+becomes the limit, the fix is a billing flag or a provider swap — not an
+architecture change.
 
 ### Abuse protection
 
@@ -182,35 +198,16 @@ An earlier draft had them; they were cut because principle 2 made them pointless
 
 ### Seed data
 
-30 items across the 5 locations:
-
-```
-freezer:      carne picada, milanesa de pollo, milanesa de carne
-heladera:     queso crema, reggianito, leche, huevos, mermelada, tomate cherry,
-              lechuga, zanahoria, port salut, muzzarella, queso cremoso,
-              cebolla de verdeo
-alacena:      aceite de oliva, aceite de girasol, arroz, fideos, salsa de tomate
-condimentos:  ají molido, comino, pimentón, orégano, harina leudante,
-              harina 0000, harina 000
-cajon:        papas, batata, cebolla
-```
+30 items across the 5 locations — see `packages/shared/src/seed.ts`.
 
 ## API contract
 
-### Request — `POST /suggest`
-
-```json
-{
-  "v": 1,
-  "freezer": ["carne picada", "milanesa de pollo"],
-  "heladera": ["huevos", "queso cremoso", "lechuga", "cebolla de verdeo"],
-  "alacena": ["arroz", "fideos", "salsa de tomate"],
-  "cajon": ["papas", "batata", "cebolla"],
-  "condimentos": "los habituales (ají molido, comino, pimentón, orégano) + harinas 000, 0000 y leudante",
-  "notes": "compré cherry y un morrón",
-  "exclude": ["Tortilla de papa con verdeo"]
-}
-```
+`POST /suggest`. Both request and response shapes are Zod schemas in
+`packages/shared/src/api.ts` (`SuggestRequest`, `Card`, `SuggestResponse`) — the
+Worker derives Gemini's response schema from the same `Card` definition it
+validates against, so there is exactly one source of truth for the card shape.
+An example request/response pair for manual testing lives at
+`plans/fixtures/example-request.json`.
 
 JSON keys are English (structural, never shown to the user) except the location
 fields (`freezer`, `heladera`, `alacena`, `condimentos`, `cajon`) — those match
@@ -224,44 +221,21 @@ ingredient words, or (in the response) the model's rioplatense Spanish.
   model handles messy Spanish fine.
 - `exclude` carries titles already shown, so batch 2 differs from batch 1. This
   is what keeps the Worker stateless.
+- `effort` is one of `"easy" | "medium" | "elaborate"` — an internal label, not
+  shown to the user verbatim. The Deck's effort badge renders it through the
+  same `es-AR` i18next resource bundle the rest of the UI uses (see Screens
+  below), so adding a locale later means adding a translation, not touching
+  the contract.
+- `"v": 1` is load-bearing — it's how a future nutrition block gets added
+  without breaking old clients.
 
-### Response — 5 cards
-
-```json
-{
-  "v": 1,
-  "cards": [
-    {
-      "title": "Tortilla de papa con verdeo",
-      "description": "Papa, huevo y verdeo con un toque de queso cremoso.",
-      "minutes": 35,
-      "effort": "easy",
-      "servings": 2,
-      "ingredients": [
-        { "name": "papas medianas", "quantity": "4", "have": true },
-        { "name": "huevos", "quantity": "5", "have": true },
-        { "name": "perejil", "quantity": "un puñado", "have": false }
-      ],
-      "steps": ["Pelá y cortá las papas en rodajas finas.", "..."],
-      "imagePrompt": "thick Spanish-style potato and egg omelette, one wedge cut out, rustic ceramic plate, natural window light, overhead"
-    }
-  ]
-}
-```
-
-`effort` is one of `"easy" | "medium" | "elaborate"` — an internal label, not
-shown to the user verbatim. The Deck's effort badge renders it through the same
-`es-AR` i18next resource bundle the rest of the UI uses (see Screens below), so
-adding a locale later means adding a translation, not touching the contract.
-
-Use Gemini's JSON schema mode. Do not parse markdown fences.
-
-Both request and response shapes are Zod schemas in `packages/shared`. The Worker
-derives Gemini's response schema from the same definition it validates against, so
-there is exactly one source of truth for the card shape.
-
-`"v": 1` is load-bearing — it's how a future nutrition block gets added without
-breaking old clients.
+Use JSON schema mode, not markdown-fence parsing — true of every provider
+behind `CardProvider` (see Architecture above). Gemini's own dialect needs
+extra care: its `responseSchema` is Google's own Schema proto (uppercase
+`type` values — `STRING`/`OBJECT`/`ARRAY`/...), not standard JSON Schema —
+`apps/worker/src/providers/gemini.ts` converts the Zod-derived JSON Schema
+into that dialect rather than hand-writing a second schema that could drift
+from `api.ts`.
 
 ## Prompt requirements
 
@@ -415,3 +389,9 @@ Score each batch of five on:
 - npm workspaces, not pnpm. Metro and pnpm symlinks are a known time sink.
 - Android first. Expo makes iOS cheap later, but don't spend any Phase 1 effort
   on it.
+- The LLM call is behind a `CardProvider` interface, not hardcoded to Gemini.
+  The spec originally named Gemini specifically; reversed after Gemini's free
+  tier and Workers AI (the natural first alternative, already in the stack for
+  images) both hit real platform bugs blocking every request on first use.
+  Groq is active now, but the model/provider is expected to change again —
+  the interface is the permanent decision, not any one provider.
