@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "skills": {
+    "drizzle": {
+      "source": "bobmatnyc/claude-mpm-skills",
+      "sourceType": "github",
+      "skillPath": "toolchains/typescript/data/drizzle/SKILL.md",
+      "computedHash": "1833b9288692060090de3e8ca1e772b5e3bbf928c9d44a20bb4d5b6766b019f2"
+    },
+    "expo-react-native-typescript": {
+      "source": "mindrally/skills",
+      "sourceType": "github",
+      "skillPath": "expo-react-native-typescript/SKILL.md",
+      "computedHash": "ef1a36e2a4e803d4e754eabea9b851221ee37b5c416256dbc9d2d1b333447f4b"
+    },
+    "react-i18next": {
+      "source": "yildizberkay/skills",
+      "sourceType": "github",
+      "skillPath": "skills/react-i18next/SKILL.md",
+      "computedHash": "2c419201047d93216faf44c2a0cce4ce86ed7ce4d1b51bc37577813069dd410d"
+    },
+    "workers-best-practices": {
+      "source": "cloudflare/skills",
+      "sourceType": "github",
+      "skillPath": "skills/workers-best-practices/SKILL.md",
+      "computedHash": "420e1ad3eaeb8ed2016e6b34fff3757de6aa39899ec2bd6e9784a29c38e70f9a"
+    },
+    "zod4": {
+      "source": "kastalien-research/thoughtbox-dot-claude",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/zod4/SKILL.md",
+      "computedHash": "ad9d6573213063b7e3ac71d569fb9acb7dcad376fa406cf7109d188099c2a0ff"
+    }
+  }
+}

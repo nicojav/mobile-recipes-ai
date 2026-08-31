@@ -1,1 +1,5 @@
 node_modules
+
+# skills content (fetched from GitHub, reproducible via `npx skills experimental_install`)
+.agents/
+.claude/skills/
