@@ -1,7 +1,7 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { Dimensions, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -136,6 +136,13 @@ export default function DeckScreen() {
 
   const advance = useCallback(() => setIndex((i) => i + 1), []);
 
+  // Full card is serialized into the route param rather than looked up by
+  // id — a suggestion isn't persisted (and has no stable id) until the user
+  // taps "Guardar" on the detail screen itself.
+  const openDetail = useCallback((card: Card) => {
+    router.push({ pathname: '/detail/[id]', params: { id: 'new', card: JSON.stringify(card) } });
+  }, []);
+
   const current = cards[index];
 
   return (
@@ -149,7 +156,7 @@ export default function DeckScreen() {
               {t('deck.counter', { current: index + 1, total: cards.length })}
             </ThemedText>
             <View style={styles.cardArea}>
-              <SwipeCard key={`${current.title}-${index}`} ref={cardRef} card={current} onSwipe={advance} />
+              <SwipeCard key={`${current.title}-${index}`} ref={cardRef} card={current} onSwipe={advance} onOpenDetail={openDetail} />
             </View>
             <Actions cardRef={cardRef} />
           </>
@@ -186,10 +193,10 @@ function Actions({ cardRef }: { cardRef: React.RefObject<SwipeCardHandle | null>
   );
 }
 
-const SwipeCard = forwardRef<SwipeCardHandle, { card: Card; onSwipe: () => void }>(function SwipeCard(
-  { card, onSwipe },
-  ref,
-) {
+const SwipeCard = forwardRef<
+  SwipeCardHandle,
+  { card: Card; onSwipe: () => void; onOpenDetail: (card: Card) => void }
+>(function SwipeCard({ card, onSwipe, onOpenDetail }, ref) {
   const { t } = useTranslation();
   const theme = useTheme();
   const translateX = useSharedValue(0);
@@ -223,6 +230,16 @@ const SwipeCard = forwardRef<SwipeCardHandle, { card: Card; onSwipe: () => void 
       }
     });
 
+  // A real tap gesture, not "pan that barely moved" — Pan only starts
+  // sending events once it activates (crosses its own distance threshold),
+  // so a genuine tap with ~0 movement never reaches Pan's onEnd at all.
+  // Exclusive gives Pan first claim (so drags still swipe); Tap only gets a
+  // chance when Pan fails to activate, which is exactly a tap.
+  const tap = Gesture.Tap().onEnd(() => {
+    runOnJS(onOpenDetail)(card);
+  });
+  const gesture = Gesture.Exclusive(pan, tap);
+
   const cardStyle = useAnimatedStyle(() => ({
     transform: [
       { translateX: translateX.value },
@@ -243,7 +260,7 @@ const SwipeCard = forwardRef<SwipeCardHandle, { card: Card; onSwipe: () => void 
   const missing = card.ingredients.filter((ingredient) => !ingredient.have);
 
   return (
-    <GestureDetector gesture={pan}>
+    <GestureDetector gesture={gesture}>
       <Animated.View style={[styles.card, { backgroundColor: theme.backgroundElement }, cardStyle]}>
         <View style={[styles.imagePlaceholder, { backgroundColor: theme.backgroundSelected }]}>
           <ThemedText style={styles.imagePlaceholderGlyph}>🍳</ThemedText>

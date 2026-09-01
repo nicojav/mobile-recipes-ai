@@ -9,3 +9,15 @@ binding = "AI"
 [[r2_buckets]]
 binding = "RECIPE_IMAGES"
 bucket_name = "mobile-recipes-images"
+
+# Workers-native rate limiting API (a binding, not the zone-level WAF Rate
+# Limiting Rules product) — works on a workers.dev deployment with no custom
+# domain/zone required, and is atomic under concurrent requests. Caps
+# /suggest per client IP; see CLAUDE.md "Abuse protection".
+[[ratelimits]]
+name = "SUGGEST_RATE_LIMITER"
+namespace_id = "1001"
+
+  [ratelimits.simple]
+  limit = 20
+  period = 60

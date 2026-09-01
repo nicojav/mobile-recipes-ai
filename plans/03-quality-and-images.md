@@ -183,11 +183,10 @@ the product.
 > - `apps/mobile/src/app/deck.tsx` and `lib/api.ts` typecheck clean
 >   (`npx tsc --noEmit`) against the new `CardWithImage` type.
 >
-> **Not yet done — needs the author on a real device:** run the app via Expo
-> Go, tap `Buscar ideas`, and confirm the card renders immediately with the
-> emoji placeholder and the real image cross-dissolves in within a few
-> seconds per card, without ever blocking the swipe/counter. This is the
-> milestone's last open acceptance box.
+> **Real-device check: done.** Author confirmed on Expo Go: cards render
+> immediately with the placeholder, real images cross-dissolve in per card,
+> swipe/counter never blocks on image load. All acceptance boxes closed —
+> milestone 3 is complete.
 
 ### Goal
 Dish images are generated once per unique dish (not per card), cached in R2, and
@@ -251,7 +250,7 @@ per card, not blocked on card 1's image finishing before card 2 starts fetching.
       via a single `Image.prefetch(array)` call
 - [x] A bad image can be replaced by hand in R2 (by key) with no code change —
       true by construction (plain keyed blob store)
-- [ ] Verified on a real device with real network latency, not localhost
+- [x] Verified on a real device with real network latency, not localhost
 
 ### Spec references
 `CLAUDE.md` → Image pipeline (entire section), Free tier ceilings (corrected —

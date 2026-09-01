@@ -17,8 +17,8 @@ acceptance criteria for each milestone, grouped from `CLAUDE.md`'s "Build order"
 |---|---|---|---|---|
 | 1 | [01-foundation.md](01-foundation.md) | 0–1 | Chip UI with all 30 seed items running on a real phone via Expo Go, no network involved | done |
 | 2 | [02-end-to-end.md](02-end-to-end.md) | 2–3 | Real LLM suggestions render in the swipeable deck on a real phone | done |
-| 3 | [03-quality-and-images.md](03-quality-and-images.md) | 4–5 | Scenario harness scores well on all five rubric axes; images swap into cards without blocking render | in progress |
-| 4 | [04-hardening.md](04-hardening.md) | 6–7 | Detail view, saved recipes, and `La cociné` work end-to-end; endpoint has a shared secret and a rate limit before the APK leaves the device | not started |
+| 3 | [03-quality-and-images.md](03-quality-and-images.md) | 4–5 | Scenario harness scores well on all five rubric axes; images swap into cards without blocking render | done |
+| 4 | [04-hardening.md](04-hardening.md) | 6–7 | Detail view, saved recipes, and `La cociné` work end-to-end; endpoint has a shared secret and a rate limit before the APK leaves the device | done (prod deploy + APK build deliberately deferred, see file) |
 
 ## How to use these
 

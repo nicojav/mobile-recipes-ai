@@ -45,14 +45,44 @@ the Worker needed, since the full card was saved). "Guardar"/"Guardadas" are the
 displayed button/screen text (via the `es-AR` i18next bundle) — the route file,
 table, and variable names are English per the naming convention from milestone 1.
 
+> **Status: built.** `apps/mobile/src/app/detail/[id].tsx` and
+> `apps/mobile/src/app/saved.tsx` exist; `db/schema.ts`'s `saved_recipes`
+> gained `cooked_count`/`last_cooked_at` columns (backfilled via
+> `ALTER TABLE` for devices that already created the table in an earlier
+> milestone). `npx tsc --noEmit` clean in `apps/mobile`.
+>
+> Two implementation calls not fully spelled out in this file's original
+> pseudocode:
+> - A deck card is tapped to open its detail. The full `CardWithImage` is
+>   serialized into the route param (`/detail/[id]?card=<json>`, `id: "new"`)
+>   rather than looked up by id, since a suggestion has no stable id until
+>   saved. From the saved list, `/detail/[id]` gets a real `saved_recipes`
+>   row id and no `card` param, and loads from SQLite instead.
+> - `La cociné` on an unsaved card saves it first (same row, same write),
+>   rather than leaving a tap with nothing to attach it to. Matches Guardar's
+>   own upsert; still one local write, still no network call.
+>
+> **Fixed mid-milestone:** the tap-to-open-detail was first built as "a pan
+> release under 8px of movement" inside the swipe gesture's own `onEnd` —
+> on-device this did nothing, because `Gesture.Pan` only starts sending
+> events once it activates (crosses its own distance threshold), so a real
+> tap with ~0 movement never reached that code at all. Replaced with an
+> actual `Gesture.Tap()` composed via `Gesture.Exclusive(pan, tap)` in
+> `apps/mobile/src/app/deck.tsx` — pan gets first claim (so drags still
+> swipe), tap only gets a chance when pan fails to activate.
+>
+> **Real-device check: done.** Author confirmed: tapping a card opens the
+> detail view, `Guardar` persists (shows "Guardado"), and `La cociné`
+> increments its counter. All acceptance boxes below closed.
+
 ### Acceptance criteria
-- [ ] Detail view renders full ingredients + steps for a real card from milestone 2/3
-- [ ] `have: false` ingredients are visually distinct but not alarming (matches
+- [x] Detail view renders full ingredients + steps for a real card from milestone 2/3
+- [x] `have: false` ingredients are visually distinct but not alarming (matches
       deck styling)
-- [ ] `Guardar` persists the full card; app restart still shows it in the saved list
-- [ ] `La cociné` records locally with no network call — confirm by checking
+- [x] `Guardar` persists the full card; app restart still shows it in the saved list
+- [x] `La cociné` records locally with no network call — confirm by checking
       network traffic (e.g. Flipper/dev tools) shows nothing on tap
-- [ ] No quantity tracking, no expiry, no nutrition fields introduced anywhere in
+- [x] No quantity tracking, no expiry, no nutrition fields introduced anywhere in
       this screen — the spec explicitly excludes all three
 
 ### Spec references
@@ -62,6 +92,38 @@ button as the only analytics; out: quantities, expiry, nutrition), Principles #3
 ---
 
 ## Step 7 — Abuse protection
+
+> **Status: built and verified against `wrangler dev`.**
+> - Secret check (`X-App-Secret`, `crypto.subtle.timingSafeEqual`) and rate
+>   limit both run in `handleSuggest` before JSON parsing — see
+>   `apps/worker/src/index.ts`.
+> - Rate limiting uses the Workers-native Rate Limiting **binding**
+>   (`[[ratelimits]]` in `wrangler.toml`), not the zone-level Rate Limiting
+>   Rules product this section's pseudocode assumed — that product needs a
+>   custom domain/zone, which this app doesn't have (workers.dev only). The
+>   binding is atomic under concurrent requests like a platform rule would
+>   be, configured entirely in `wrangler.toml`, and needs no hand-rolled KV
+>   counter/TTL logic. Folded into `CLAUDE.md`'s Abuse protection section.
+> - Verified live: no header → 401; wrong secret → 401; correct secret with
+>   an otherwise-invalid body → 400 (past the gate, normal validation path);
+>   21 rapid requests with the correct secret → the 21st gets 429, matching
+>   the configured 20 req/60s cap.
+> - `GROQ_KEY`/`GEMINI_KEY` never appear anywhere in `apps/mobile` (grepped)
+>   — true by construction, since the app only ever calls the Worker's own
+>   `/suggest`. The literal "grep the built APK" acceptance box is still
+>   open pending an actual build, same as the on-device checks below.
+> - The app secret is `EXPO_PUBLIC_APP_SECRET` in `apps/mobile/.env`
+>   (gitignored), sent as a header in `lib/api.ts` — not hardcoded in the
+>   `fetch` call. Local dev value matches the Worker's `.dev.vars`
+>   `APP_SECRET`; a real deploy needs its own value via
+>   `wrangler secret put APP_SECRET`.
+>
+> **Deliberately deferred by the author:** a real deploy (`wrangler secret
+> put APP_SECRET` with a production value, `wrangler deploy`) and a real
+> Android build to grep for the provider keys in the actual APK bytes. This
+> is prototype phase — dev-mode testing against `wrangler dev` over Expo Go
+> is the target for now; the production deploy is a deliberate later step,
+> not unfinished work here.
 
 ### Goal
 Before the APK is distributed anywhere: `/suggest` requires a shared secret only
@@ -96,14 +158,19 @@ casual scraping/abuse, not to be cryptographically unbreakable. The real
 protection is that it's not the Gemini key itself.
 
 ### Acceptance criteria
-- [ ] Request to `/suggest` without the header → 401, no Gemini/FLUX call made
-- [ ] Request with a wrong secret → 401
-- [ ] Request with the correct secret → normal 200 flow
-- [ ] Rapid repeated requests from one IP are throttled (verify by scripting N
-      requests quickly and observing a 429 or block)
+- [x] Request to `/suggest` without the header → 401, no Gemini/FLUX call made
+- [x] Request with a wrong secret → 401
+- [x] Request with the correct secret → normal 200 flow (verified through to
+      the 400 validation path with a correct secret + invalid body; a full
+      200 needs a real Groq call, not repeated here to avoid burning the
+      token-per-minute budget — see harness runs in milestone 3 for that)
+- [x] Rapid repeated requests from one IP are throttled — scripted 21 requests
+      against `wrangler dev`, 21st returned 429 (20 req/60s cap)
 - [ ] `GEMINI_KEY` does not appear anywhere in the built APK — grep the built
-      bundle/binary for the literal key value as a final check
-- [ ] Shared secret lives in Expo config, not hardcoded inline in a `fetch` call
+      bundle/binary for the literal key value as a final check (true by
+      construction from source, see status note; a real APK build is the
+      remaining step)
+- [x] Shared secret lives in Expo config, not hardcoded inline in a `fetch` call
 
 ### Spec references
 `CLAUDE.md` → Abuse protection, "Why the Worker exists," Free tier ceilings.

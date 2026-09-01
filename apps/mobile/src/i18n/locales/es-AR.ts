@@ -3,6 +3,7 @@ export const esAR = {
     title: "Mi cocina",
     notesPlaceholder: 'algo suelto que compraste, tipo "cherry y un morrón"',
     findIdeas: "Buscar ideas",
+    viewSaved: "Guardadas",
   },
   group: {
     show: "mostrar",
@@ -38,5 +39,19 @@ export const esAR = {
     retry: "Reintentar",
     discard: "Descartar",
     like: "Me gusta",
+  },
+  detail: {
+    servings: "{{count}} porciones",
+    ingredients: "Ingredientes",
+    steps: "Preparación",
+    save: "Guardar",
+    saved: "Guardado",
+    cooked: "La cociné",
+    cookedCount_one: "La cocinaste {{count}} vez",
+    cookedCount_other: "La cocinaste {{count}} veces",
+  },
+  saved: {
+    title: "Guardadas",
+    empty: "Todavía no guardaste ninguna receta.",
   },
 } as const;

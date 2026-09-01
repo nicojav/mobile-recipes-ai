@@ -9,6 +9,10 @@ import { items as itemsTable } from '@db/schema';
 // machine's LAN IP via EXPO_PUBLIC_WORKER_URL in apps/mobile/.env for
 // on-device testing; localhost only works in the web/simulator target.
 const WORKER_URL = process.env.EXPO_PUBLIC_WORKER_URL ?? 'http://localhost:8787';
+// Deters casual scraping of the metered endpoint, not real auth — this app
+// has none by design (CLAUDE.md "Explicitly out"). Ships inside the APK like
+// any client-side secret; see the Worker's own comment on the check.
+const APP_SECRET = process.env.EXPO_PUBLIC_APP_SECRET ?? '';
 
 function namesFor(items: Item[], location: Location): string[] {
   return items.filter((item) => item.location === location).map((item) => item.name);
@@ -46,7 +50,7 @@ async function postSuggest(body: SuggestRequest): Promise<unknown> {
   for (let attempt = 1; attempt <= MAX_SUGGEST_ATTEMPTS; attempt++) {
     const res = await fetch(`${WORKER_URL}/suggest`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', 'X-App-Secret': APP_SECRET },
       body: JSON.stringify(body),
     });
     if (res.ok) return res.json();

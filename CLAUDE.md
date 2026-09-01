@@ -170,8 +170,18 @@ architecture change.
 ### Abuse protection
 
 The endpoint is public and spends metered resources. Before the APK leaves the
-author's device: shared-secret header from the app, plus a per-IP cap in KV or a
-Cloudflare Rate Limiting rule.
+author's device: shared-secret header from the app (`X-App-Secret`, compared
+timing-safe, checked before any JSON parsing or provider/image work), plus a
+per-IP cap on `/suggest`.
+
+The per-IP cap uses the Workers-native Rate Limiting **binding**
+(`[[ratelimits]]` in `wrangler.toml`, `env.SUGGEST_RATE_LIMITER.limit(...)`)
+— 20 req/60s per `CF-Connecting-IP`. Not the zone-level Rate Limiting Rules
+WAF product the spec originally named: that needs a custom domain/zone, which
+this app doesn't have (it deploys to workers.dev). Not hand-rolled KV either
+— the binding is already atomic under concurrent requests, so there's nothing
+a KV counter would add. Same tradeoff logic as the `CardProvider` interface:
+picked the option that actually works on this deployment's free tier.
 
 ## Data model
 
@@ -339,25 +349,11 @@ daily requests becomes 5,000 cards.
 
 ## Build order
 
-0. Workspace skeleton: root `package.json` with workspaces, `apps/mobile` via
-   `create-expo-app`, `apps/worker` via `npm create cloudflare`, empty
-   `packages/shared`. Verify both apps start and both can import from shared.
-1. `packages/shared`: Item and Location schemas + seed data. Then Drizzle schema
-   and the Mi cocina screen. No network. Verify the chip UI feels right with all
-   30 real items on a real phone via Expo Go.
-2. Worker: `POST /suggest`, key as secret, hardcoded prompt, real Gemini call,
-   response schema derived from `packages/shared`. Test with curl before the app
-   touches it.
-3. Wire the app to the Worker. Deck screen with placeholder images. This is the
-   first end-to-end moment — stop and evaluate suggestion quality here.
-4. Prompt iteration against the scenario harness (below). Do not move on until
-   the rubric scores well. Everything after this is polish; this is the product.
-5. Image pipeline: R2 + FLUX + async swap-in.
-6. Detail view, saved recipes, `La cociné`.
-7. Rate limiting and shared secret, before the APK goes anywhere.
-
-Run against Expo Go on a real device from step 1. The simulator will not tell you
-whether the swipe gesture feels right.
+Phase 1 (workspace skeleton through rate limiting) is complete — see
+`plans/README.md` for the milestone table and `plans/0*.md` for what each step
+built and verified. Any future work should keep running against Expo Go on a
+real device, not just the simulator — the simulator won't tell you whether the
+swipe gesture feels right.
 
 ## Testing
 

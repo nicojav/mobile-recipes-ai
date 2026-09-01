@@ -65,9 +65,16 @@ export default function KitchenScreen() {
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.header}>
-          <ThemedText type="title" style={styles.title}>
-            {t('kitchen.title')}
-          </ThemedText>
+          <View style={styles.titleRow}>
+            <ThemedText type="title" style={styles.title}>
+              {t('kitchen.title')}
+            </ThemedText>
+            <Pressable onPress={() => router.push('/saved')}>
+              <ThemedText type="link" themeColor="textSecondary">
+                {t('kitchen.viewSaved')}
+              </ThemedText>
+            </Pressable>
+          </View>
           <TextInput
             value={notes}
             onChangeText={setNotes}
@@ -171,6 +178,11 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     paddingTop: Spacing.two,
     paddingBottom: Spacing.three,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
   },
   title: {
     fontSize: 28,

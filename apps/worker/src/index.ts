@@ -16,6 +16,19 @@ export default {
 } satisfies ExportedHandler<Env>;
 
 async function handleSuggest(request: Request, env: Env): Promise<Response> {
+  // Cheapest checks first — reject before any JSON parsing or provider/image
+  // work reaches the paid-per-call parts of the pipeline. See CLAUDE.md
+  // "Abuse protection".
+  if (!(await hasValidAppSecret(request, env))) {
+    return jsonError(401, "missing or invalid X-App-Secret header");
+  }
+
+  const clientIp = request.headers.get("CF-Connecting-IP") ?? "unknown";
+  const { success: withinRateLimit } = await env.SUGGEST_RATE_LIMITER.limit({ key: clientIp });
+  if (!withinRateLimit) {
+    return jsonError(429, "too many requests");
+  }
+
   let body: unknown;
   try {
     body = await request.json();
@@ -76,6 +89,21 @@ async function handleImage(request: Request, env: Env, key: string): Promise<Res
   return new Response(bytes, {
     headers: { "content-type": "image/jpeg", "cache-control": IMAGE_CACHE_CONTROL },
   });
+}
+
+// The app's copy of this value ships inside the APK (there's no way around
+// that for a client-side secret) — its job is blocking casual scraping, not
+// being cryptographically unbreakable. Real protection is that it's not the
+// Groq/Gemini key itself. Compared with a timing-safe check anyway since the
+// cost of doing so is negligible.
+async function hasValidAppSecret(request: Request, env: Env): Promise<boolean> {
+  const provided = request.headers.get("X-App-Secret");
+  if (!provided) return false;
+  const encoder = new TextEncoder();
+  const providedBytes = encoder.encode(provided);
+  const expectedBytes = encoder.encode(env.APP_SECRET);
+  if (providedBytes.byteLength !== expectedBytes.byteLength) return false;
+  return crypto.subtle.timingSafeEqual(providedBytes, expectedBytes);
 }
 
 function jsonError(status: number, error: string, detail?: unknown): Response {

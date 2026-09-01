@@ -20,9 +20,25 @@ export function initDb() {
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
       card TEXT NOT NULL,
-      saved_at INTEGER NOT NULL
+      saved_at INTEGER NOT NULL,
+      cooked_count INTEGER NOT NULL DEFAULT 0,
+      last_cooked_at INTEGER
     );
   `);
+  // Milestones 1–3 already created saved_recipes (without these two columns)
+  // on real devices; ADD COLUMN backfills them there. No-op on a fresh
+  // install, where CREATE TABLE above already included them — the
+  // "duplicate column" error is expected and harmless in that case.
+  for (const stmt of [
+    `ALTER TABLE saved_recipes ADD COLUMN cooked_count INTEGER NOT NULL DEFAULT 0;`,
+    `ALTER TABLE saved_recipes ADD COLUMN last_cooked_at INTEGER;`,
+  ]) {
+    try {
+      sqlite.execSync(stmt);
+    } catch {
+      // column already exists
+    }
+  }
 
   const alreadySeeded = db.select().from(items).limit(1).all().length > 0;
   if (!alreadySeeded) {

@@ -12,4 +12,9 @@ export const savedRecipes = sqliteTable("saved_recipes", {
   title: text("title").notNull(),
   card: text("card").notNull(), // full card JSON, so the saved list never re-fetches
   savedAt: integer("saved_at").notNull(),
+  // "La cociné" — the only analytics in the app (CLAUDE.md Phase 1 scope).
+  // A count + last timestamp on the row it refers to, not a separate event
+  // log or table.
+  cookedCount: integer("cooked_count").notNull().default(0),
+  lastCookedAt: integer("last_cooked_at"),
 });
