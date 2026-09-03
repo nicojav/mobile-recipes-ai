@@ -17,11 +17,12 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { Image } from 'expo-image';
-import type { CardWithImage as Card } from '@mobile-recipes/shared';
+import { CARD_COUNT, FIRST_PAINT_COUNT, type CardWithImage as Card } from '@mobile-recipes/shared';
 
 import { fetchSuggestions } from '@lib/api';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { DevImageQuotaBar } from '@/components/dev-image-quota-bar';
 import { Colors, Spacing, BottomTabInset, MaxContentWidth } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -33,16 +34,24 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 const PREFETCH_AT_REMAINING = 2;
 
 type Status = 'loading' | 'ready' | 'waiting' | 'error';
-type SwipeCardHandle = { dismiss: (direction: 1 | -1) => void };
+type DeckAction = 'back' | 'next';
+type SwipeCardHandle = { dismiss: (action: DeckAction) => void };
 
 export default function DeckScreen() {
   const { notes: notesParam } = useLocalSearchParams<{ notes?: string }>();
   const notes = notesParam ?? '';
   const { t } = useTranslation();
 
+  const theme = useTheme();
   const [status, setStatus] = useState<Status>('loading');
   const [cards, setCards] = useState<Card[]>([]);
   const [index, setIndex] = useState(0);
+  // True from the moment the first FIRST_PAINT_COUNT cards land until the
+  // rest of that same batch arrives (or fails) — see firstBatchTail below.
+  // Only affects the counter: while true, show the full CARD_COUNT as the
+  // total instead of the still-partial cards.length, so "1 de 5" doesn't
+  // briefly read "1 de 2" and then jump.
+  const [awaitingFirstBatchTail, setAwaitingFirstBatchTail] = useState(false);
 
   // Titles shown so far this session, sent as `exclude` on every follow-up
   // batch so a batch-2 request never repeats a batch-1 dish.
@@ -51,47 +60,45 @@ export default function DeckScreen() {
   const isFetchingNext = useRef(false);
   const cardRef = useRef<SwipeCardHandle>(null);
 
-  const fetchBatch = useCallback(async (): Promise<Card[] | null> => {
-    try {
-      const next = await fetchSuggestions(notes, shownTitles.current);
-      shownTitles.current = [...shownTitles.current, ...next.map((c) => c.title)];
-      // Fire all 5 image requests concurrently as soon as the batch is
-      // known — whether it's shown immediately or held as a prefetched-ahead
-      // batch, the Worker should already be generating/caching by the time
-      // any card needs its image. Never awaited: a failed prefetch just
-      // means the <Image> in SwipeCard loads it lazily instead — see
-      // CLAUDE.md's Image pipeline section ("never block the card on the
-      // image").
-      Image.prefetch(next.map((card) => card.imageUrl)).catch(() => {});
-      return next;
-    } catch {
-      return null;
-    }
-  }, [notes]);
+  // Non-null while the first batch's second call (the remaining
+  // CARD_COUNT - FIRST_PAINT_COUNT cards) is in flight — only ever checked
+  // for truthiness, never awaited, so it's typed as the settled `void` that
+  // handleTailSettled itself produces. This is a Groq streaming workaround —
+  // see CLAUDE.md "Decisions already made" for why the first batch is split
+  // into two calls instead of one, and delete this along with the rest of
+  // the split if that ever stops being true.
+  const firstBatchTail = useRef<Promise<void> | null>(null);
+  // Set if the user swipes past the FIRST_PAINT_COUNT cards before the tail
+  // above lands — tells handleTailSettled it needs to resume the deck
+  // itself, not just append quietly in the background.
+  const caughtUpDuringTail = useRef(false);
 
-  const load = useCallback(() => {
-    setStatus('loading');
-    fetchBatch().then((next) => {
-      if (!next) {
-        setStatus('error');
-        return;
+  const fetchBatch = useCallback(
+    async (count?: number): Promise<Card[] | null> => {
+      try {
+        const next = await fetchSuggestions(notes, shownTitles.current, count);
+        shownTitles.current = [...shownTitles.current, ...next.map((c) => c.title)];
+        // Fire all image requests concurrently as soon as the batch is
+        // known — whether it's shown immediately or held as a
+        // prefetched-ahead batch, the Worker should already be
+        // generating/caching by the time any card needs its image. Never
+        // awaited: a failed prefetch just means the <Image> in SwipeCard
+        // loads it lazily instead — see CLAUDE.md's Image pipeline section
+        // ("never block the card on the image").
+        Image.prefetch(next.map((card) => card.imageUrl)).catch(() => {});
+        return next;
+      } catch {
+        return null;
       }
-      setCards(next);
-      setIndex(0);
-      setStatus('ready');
-    });
-  }, [fetchBatch]);
-
-  useEffect(() => {
-    load();
-    // Only on mount — `notes` is captured once, when the user tapped "Buscar
-    // ideas"; it shouldn't re-trigger a fresh batch on its own.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    },
+    [notes],
+  );
 
   const maybePrefetch = useCallback(() => {
     if (isFetchingNext.current || pendingBatch.current) return;
     isFetchingNext.current = true;
+    // Prefetch-ahead batches are always a full CARD_COUNT — only the first
+    // batch of a session is split. See CLAUDE.md "Prefetching".
     fetchBatch().then((next) => {
       isFetchingNext.current = false;
       setStatus((current) => {
@@ -115,6 +122,60 @@ export default function DeckScreen() {
     });
   }, [fetchBatch]);
 
+  // Runs once phase 2 of the first batch (the remaining
+  // CARD_COUNT - FIRST_PAINT_COUNT cards) settles, success or failure.
+  const handleTailSettled = useCallback(
+    (rest: Card[] | null) => {
+      firstBatchTail.current = null;
+      setAwaitingFirstBatchTail(false);
+      const caughtUp = caughtUpDuringTail.current;
+      caughtUpDuringTail.current = false;
+
+      if (rest && rest.length > 0) {
+        setCards((prev) => [...prev, ...rest]);
+      }
+      // If the user hadn't reached the end of the first FIRST_PAINT_COUNT
+      // cards yet, there's nothing to resume — the effect below will pick
+      // the appended cards up naturally once they get there.
+      if (!caughtUp) return;
+
+      if (rest && rest.length > 0) {
+        setStatus('ready');
+      } else {
+        // Non-fatal: the deck stays at FIRST_PAINT_COUNT cards for this
+        // batch. Same recovery as any other exhausted batch.
+        setStatus('waiting');
+        maybePrefetch();
+      }
+    },
+    [maybePrefetch],
+  );
+
+  const load = useCallback(() => {
+    setStatus('loading');
+    fetchBatch(FIRST_PAINT_COUNT).then((first) => {
+      if (!first) {
+        setStatus('error');
+        return;
+      }
+      setCards(first);
+      setIndex(0);
+      setStatus('ready');
+      setAwaitingFirstBatchTail(true);
+      // Immediately go get the rest of the batch in the background — see
+      // CLAUDE.md "Decisions already made" for why this is split instead of
+      // one call for all of CARD_COUNT.
+      firstBatchTail.current = fetchBatch(CARD_COUNT - FIRST_PAINT_COUNT).then(handleTailSettled);
+    });
+  }, [fetchBatch, handleTailSettled]);
+
+  useEffect(() => {
+    load();
+    // Only on mount — `notes` is captured once, when the user tapped "Buscar
+    // ideas"; it shouldn't re-trigger a fresh batch on its own.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (status !== 'ready') return;
     if (index >= cards.length) {
@@ -123,18 +184,36 @@ export default function DeckScreen() {
         pendingBatch.current = null;
         setCards(next);
         setIndex(0);
+      } else if (firstBatchTail.current) {
+        // Ran out of the first FIRST_PAINT_COUNT cards before the rest of
+        // the batch landed — hold here; handleTailSettled resumes the deck
+        // once it does.
+        caughtUpDuringTail.current = true;
+        setStatus('loading');
       } else {
         setStatus('waiting');
         maybePrefetch();
       }
       return;
     }
+    // While the first batch's tail is still in flight, cards.length sits at
+    // FIRST_PAINT_COUNT, which happens to equal PREFETCH_AT_REMAINING —
+    // without this guard the check below would misfire and kick off a
+    // redundant third call on top of the two the first batch already makes.
+    if (firstBatchTail.current) return;
     if (cards.length - index === PREFETCH_AT_REMAINING) {
       maybePrefetch();
     }
   }, [index, cards, status, maybePrefetch]);
 
   const advance = useCallback(() => setIndex((i) => i + 1), []);
+
+  // Cards already swiped stay in `cards` — advance() only ever increments
+  // `index`, nothing ever removes or overwrites an earlier entry within the
+  // current batch — so going back one card needs no re-fetch, just showing
+  // the same array at a lower index. No-ops at the start of the batch;
+  // rewinding into a previous, already-replaced batch isn't supported.
+  const rewind = useCallback(() => setIndex((i) => Math.max(0, i - 1)), []);
 
   // Full card is serialized into the route param rather than looked up by
   // id — a suggestion isn't persisted (and has no stable id) until the user
@@ -143,22 +222,46 @@ export default function DeckScreen() {
     router.push({ pathname: '/detail/[id]', params: { id: 'new', card: JSON.stringify(card) } });
   }, []);
 
+  // Swiping is pure back/next navigation, book-style — there's no
+  // like/discard concept in this deck (nothing was ever persisted by a
+  // swipe; only Detail's Guardar saves a recipe).
+  const handleSwipe = useCallback((action: DeckAction) => (action === 'back' ? rewind() : advance()), [rewind, advance]);
+
   const current = cards[index];
 
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
+        <View style={styles.header}>
+          <Pressable
+            accessibilityLabel={t('deck.back')}
+            onPress={() => router.back()}
+            style={[styles.backButton, { backgroundColor: theme.backgroundElement }]}
+          >
+            <ThemedText type="title" style={styles.backGlyph}>
+              ‹
+            </ThemedText>
+          </Pressable>
+        </View>
+        {__DEV__ && <DevImageQuotaBar />}
         {(status === 'loading' || status === 'waiting') && <LoadingView />}
         {status === 'error' && <ErrorView onRetry={load} />}
         {status === 'ready' && current && (
           <>
             <ThemedText type="smallBold" themeColor="textSecondary" style={styles.counter}>
-              {t('deck.counter', { current: index + 1, total: cards.length })}
+              {t('deck.counter', { current: index + 1, total: awaitingFirstBatchTail ? CARD_COUNT : cards.length })}
             </ThemedText>
             <View style={styles.cardArea}>
-              <SwipeCard key={`${current.title}-${index}`} ref={cardRef} card={current} onSwipe={advance} onOpenDetail={openDetail} />
+              <SwipeCard
+                key={`${current.title}-${index}`}
+                ref={cardRef}
+                card={current}
+                onSwipe={handleSwipe}
+                onOpenDetail={openDetail}
+                canGoBack={index > 0}
+              />
             </View>
-            <Actions cardRef={cardRef} />
+            <Actions cardRef={cardRef} canGoBack={index > 0} />
           </>
         )}
       </SafeAreaView>
@@ -166,52 +269,77 @@ export default function DeckScreen() {
   );
 }
 
-function Actions({ cardRef }: { cardRef: React.RefObject<SwipeCardHandle | null> }) {
+// Both buttons dispatch through the same animated dismiss() as a real
+// swipe, rather than jumping the index directly, so tap and swipe feel
+// identical. Back is disabled at the start of a batch — see canGoBack on
+// SwipeCard for why that boundary needs guarding at the gesture level too.
+function Actions({ cardRef, canGoBack }: { cardRef: React.RefObject<SwipeCardHandle | null>; canGoBack: boolean }) {
   const { t } = useTranslation();
   const theme = useTheme();
   return (
     <View style={styles.actions}>
       <Pressable
-        accessibilityLabel={t('deck.discard')}
-        onPress={() => cardRef.current?.dismiss(-1)}
-        style={[styles.actionButton, { backgroundColor: theme.backgroundElement }]}
+        accessibilityLabel={t('deck.previous')}
+        onPress={() => cardRef.current?.dismiss('back')}
+        disabled={!canGoBack}
+        style={[styles.actionButton, { backgroundColor: theme.backgroundElement }, !canGoBack && styles.actionButtonDisabled]}
       >
         <ThemedText type="title" style={styles.actionGlyph}>
-          ✕
+          ‹
         </ThemedText>
       </Pressable>
       <Pressable
-        accessibilityLabel={t('deck.like')}
-        onPress={() => cardRef.current?.dismiss(1)}
+        accessibilityLabel={t('deck.next')}
+        onPress={() => cardRef.current?.dismiss('next')}
         style={[styles.actionButton, { backgroundColor: theme.backgroundElement }]}
       >
         <ThemedText type="title" style={styles.actionGlyph}>
-          ♥
+          ›
         </ThemedText>
       </Pressable>
     </View>
   );
 }
 
+// A button tap has no drag to honor, so it flies in its own arrow's
+// direction: back (‹) exits left, next (›) exits right.
+const ACTION_FLY_DIRECTION: Record<DeckAction, 1 | -1> = { back: -1, next: 1 };
+
 const SwipeCard = forwardRef<
   SwipeCardHandle,
-  { card: Card; onSwipe: () => void; onOpenDetail: (card: Card) => void }
->(function SwipeCard({ card, onSwipe, onOpenDetail }, ref) {
+  { card: Card; onSwipe: (action: DeckAction) => void; onOpenDetail: (card: Card) => void; canGoBack: boolean }
+>(function SwipeCard({ card, onSwipe, onOpenDetail, canGoBack }, ref) {
   const { t } = useTranslation();
   const theme = useTheme();
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
 
+  // flyDirection defaults to the action's own arrow direction (button taps),
+  // but a real drag overrides it with wherever the user actually dragged —
+  // the card should always visually exit the way your finger moved, even
+  // though (per the muscle-memory convention below) that's the *opposite*
+  // sign from the button that triggers the same action.
   const fling = useCallback(
-    (direction: 1 | -1) => {
-      translateX.value = withTiming(direction * SCREEN_WIDTH * 1.5, { duration: 220, easing: Easing.out(Easing.cubic) }, (finished) => {
-        if (finished) runOnJS(onSwipe)();
+    (action: DeckAction, flyDirection: 1 | -1 = ACTION_FLY_DIRECTION[action]) => {
+      // A "back" with nowhere to go back to (start of the batch). Spring
+      // back to center instead of flying the card off-screen — since index
+      // wouldn't actually change, the key on this SwipeCard stays the same,
+      // so React reuses this instance rather than remounting it, and
+      // translateX would otherwise be left off-screen with nothing to
+      // reset it.
+      if (action === 'back' && !canGoBack) {
+        translateX.value = withSpring(0);
+        translateY.value = withSpring(0);
+        return;
+      }
+      translateX.value = withTiming(flyDirection * SCREEN_WIDTH * 1.5, { duration: 220, easing: Easing.out(Easing.cubic) }, (finished) => {
+        if (finished) runOnJS(onSwipe)(action);
       });
     },
-    [onSwipe, translateX],
+    [onSwipe, translateX, translateY, canGoBack],
   );
 
-  useImperativeHandle(ref, () => ({ dismiss: fling }), [fling]);
+  useImperativeHandle(ref, () => ({ dismiss: (action: DeckAction) => fling(action) }), [fling]);
 
   const pan = Gesture.Pan()
     .onUpdate((e) => {
@@ -220,10 +348,16 @@ const SwipeCard = forwardRef<
     })
     .onEnd((e) => {
       if (Math.abs(e.translationX) > SWIPE_THRESHOLD) {
-        const direction = e.translationX > 0 ? 1 : -1;
-        translateX.value = withTiming(direction * SCREEN_WIDTH * 1.5, { duration: 220, easing: Easing.out(Easing.cubic) }, (finished) => {
-          if (finished) runOnJS(onSwipe)();
-        });
+        const dragDirection = e.translationX > 0 ? 1 : -1;
+        // Muscle-memory convention from horizontal paging UIs (Photos,
+        // Instagram stories, most carousels): dragging LEFT reveals the
+        // NEXT card, dragging RIGHT goes BACK — the reverse of Tinder's
+        // discard/like left/right, which this deck doesn't use anymore.
+        // See CLAUDE.md "Decisions already made". The card still flies the
+        // way you physically dragged it (dragDirection); only which
+        // *action* that triggers is inverted.
+        const action: DeckAction = dragDirection === 1 ? 'back' : 'next';
+        runOnJS(fling)(action, dragDirection);
       } else {
         translateX.value = withSpring(0);
         translateY.value = withSpring(0);
@@ -250,13 +384,6 @@ const SwipeCard = forwardRef<
     ],
   }));
 
-  const likeStampStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(translateX.value, [20, SWIPE_THRESHOLD], [0, 1], Extrapolation.CLAMP),
-  }));
-  const discardStampStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(translateX.value, [-SWIPE_THRESHOLD, -20], [1, 0], Extrapolation.CLAMP),
-  }));
-
   const missing = card.ingredients.filter((ingredient) => !ingredient.have);
 
   return (
@@ -268,17 +395,6 @@ const SwipeCard = forwardRef<
               underneath (and thus unblocking) until this cross-dissolves in. */}
           <Image source={{ uri: card.imageUrl }} style={StyleSheet.absoluteFill} contentFit="cover" transition={300} />
         </View>
-
-        <Animated.View style={[styles.stamp, styles.likeStamp, likeStampStyle]}>
-          <ThemedText type="title" style={styles.likeStampText}>
-            ♥
-          </ThemedText>
-        </Animated.View>
-        <Animated.View style={[styles.stamp, styles.discardStamp, discardStampStyle]}>
-          <ThemedText type="title" style={styles.discardStampText}>
-            ✕
-          </ThemedText>
-        </Animated.View>
 
         <View style={styles.cardBody}>
           <ThemedText type="subtitle" style={styles.cardTitle}>
@@ -382,6 +498,21 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: MaxContentWidth,
   },
+  header: {
+    flexDirection: 'row',
+    paddingTop: Spacing.two,
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backGlyph: {
+    fontSize: 26,
+    lineHeight: 26,
+  },
   counter: {
     textAlign: 'center',
     paddingVertical: Spacing.two,
@@ -401,29 +532,6 @@ const styles = StyleSheet.create({
   },
   imagePlaceholderGlyph: {
     fontSize: 56,
-  },
-  stamp: {
-    position: 'absolute',
-    top: Spacing.four,
-    borderWidth: 3,
-    borderRadius: Spacing.two,
-    paddingHorizontal: Spacing.two,
-  },
-  likeStamp: {
-    right: Spacing.three,
-    borderColor: '#3fae5c',
-    transform: [{ rotate: '12deg' }],
-  },
-  likeStampText: {
-    color: '#3fae5c',
-  },
-  discardStamp: {
-    left: Spacing.three,
-    borderColor: '#d15c4f',
-    transform: [{ rotate: '-12deg' }],
-  },
-  discardStampText: {
-    color: '#d15c4f',
   },
   cardBody: {
     padding: Spacing.three,
@@ -458,6 +566,9 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  actionButtonDisabled: {
+    opacity: 0.35,
   },
   actionGlyph: {
     fontSize: 24,

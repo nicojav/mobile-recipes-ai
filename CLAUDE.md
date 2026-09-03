@@ -5,8 +5,9 @@ Drop this at the repo root. It's the working context for the build.
 ## What this is
 
 An Android app that suggests meal ideas based on what's in the kitchen. The user
-browses suggestions with a Tinder-style swipe. Spanish rioplatense, voseo,
-Argentine ingredient vocabulary and recipe repertoire.
+browses suggestions by swiping through a card deck, book-style (back/next, not
+Tinder-style decide-and-discard — see Screens below). Spanish rioplatense,
+voseo, Argentine ingredient vocabulary and recipe repertoire.
 
 Single user, single device, no accounts, no sync. Built for real use by its author
 as a home cook in Buenos Aires.
@@ -40,8 +41,9 @@ permanently — none of them are recoverable from reading the code.
    inventory system and it is not a nutrition tracker. Any feature that asks the
    user to maintain accuracy is suspect.
 2. **Mistakes are cheap.** If the app thinks there's lettuce and there isn't, the
-   user swipes left. That costs half a second. Never build machinery to prevent
-   this — no confirmation prompts, no freshness tracking, no expiry dates.
+   user just moves to the next card. That costs half a second. Never build
+   machinery to prevent this — no confirmation prompts, no freshness tracking,
+   no expiry dates.
 3. **Tolerant matching.** A recipe is worth suggesting if most ingredients are
    present. Missing ones get flagged on the card, not used to filter it out.
    Flagging is informational (amber), never an error state.
@@ -149,6 +151,10 @@ iteration ships without a Play Store release.
   is a normal transient condition, not an edge case. **This is the current
   binding constraint.** If evaluating a replacement provider later, check its
   tokens/minute ceiling specifically, not just its request-count limits.
+  Also: no streaming with structured outputs (Groq's Structured Outputs docs
+  say so explicitly). If evaluating a replacement provider, check this
+  alongside the tokens/minute ceiling — it's what forces the two-call first
+  batch described under Prefetching below.
 - Gemini Flash-Lite free tier: ~1,000 req/day — tighter than Groq's, would
   become binding again if switched back.
 - Workers AI: 10,000 neurons/day ≈ **~170 images/day**, not the ~2,000 an
@@ -328,7 +334,22 @@ considered and rejected: it doesn't imply voseo, and this app's whole voice
 1. **Mi cocina** — chips grouped by location, tap to toggle active. Free-text
    quick-add at top. `Buscar ideas` CTA at bottom. Condimentos/cajón collapsed.
    Chips over checkbox rows: ~30 items fits on one screen instead of four.
-2. **Deck** — one card visible, `2 de 5` counter, swipe or tap the X / heart.
+2. **Deck** — one card visible, `2 de 5` counter, swipe or tap ‹ / › to move
+   back and forth through the batch. Book-style navigation, not Tinder-style
+   decide-and-discard: cards already shown stay in place, so going back and
+   forward again shows the exact same cards, no re-fetch. There's no
+   like/discard concept here and nothing is saved by swiping — only
+   `Guardar` on the Detail screen (below) persists a recipe. Swipe **left**
+   for **next**, swipe **right** for **back** — the horizontal-pager
+   convention (Photos, Instagram stories, most carousels: drag left reveals
+   what's next), not the literal "swipe left to go back like a book" of an
+   earlier draft, which turned out backwards from what felt natural once
+   tried on-device. The ‹ / › buttons aren't swipes, so they just match
+   their own arrow: ‹ exits left (back), › exits right (next). (An even
+   earlier draft had this as swipe left/right = discard/like, both
+   advancing forward with a stamp animation; reversed once it became clear
+   neither direction actually did anything different — both just advanced —
+   so the stamps were decorative, and the real want was to revisit a card.)
    Card shows image, title, time and effort badges, one-line description, and the
    `Te falta:` line in amber if anything is missing.
 3. **Detalle** — full ingredient list with check/dash per item, numbered steps,
@@ -343,9 +364,15 @@ considered and rejected: it doesn't imply voseo, and this app's whole voice
 
 ## Prefetching
 
-One request returns five cards. Never make five requests. When the user has 2
-cards left, quietly fetch the next batch with `exclude` populated. 1,000 free
-daily requests becomes 5,000 cards.
+Prefetch-ahead batches are one request for five cards, never five requests.
+When the user has 2 cards left, quietly fetch the next batch with `exclude`
+populated. 1,000 free daily requests becomes 5,000 cards.
+
+**The first batch of a session is the one exception**: it's split into two
+calls (2 cards, then 3), so the deck can render as soon as the first two
+exist instead of waiting on all five. This exists only because Groq can't
+stream structured output — see the entry under "Decisions already made" for
+why, and for when to undo it.
 
 ## Build order
 
@@ -415,3 +442,18 @@ Score each batch of five on:
   images) both hit real platform bugs blocking every request on first use.
   Groq is active now, but the model/provider is expected to change again —
   the interface is the permanent decision, not any one provider.
+- The first suggestion batch is split into two calls (2 cards, then 3)
+  instead of streaming one call. **This is a workaround for a Groq
+  limitation, not the design we'd choose.** Groq does not support
+  `stream: true` together with `response_format: json_schema` — "Streaming
+  and tool use are not currently supported with Structured Outputs" — and
+  dropping to `json_object` mode to get streaming would lose constrained
+  decoding, which `providers/groq.ts` already records as necessary for this
+  schema to survive (a weaker model garbled it even with strict mode on).
+  **If the active provider changes, check whether it streams structured
+  output. If it does, delete the split and stream one call instead** — that
+  puts the first card up sooner, costs ~9% fewer tokens, and restores the
+  single "dame 5 recetas variadas" prompt that keeps effort variety coherent
+  across the batch. The client is not a blocker: `expo/fetch` already
+  supports streaming response bodies (`response.body` is a real
+  `ReadableStream`).

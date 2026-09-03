@@ -1,5 +1,12 @@
 import { z } from "zod";
 
+// A full batch is 5 cards. The first batch of a session is split into
+// FIRST_PAINT_COUNT + (CARD_COUNT - FIRST_PAINT_COUNT) — a Groq workaround,
+// not the design of choice. See CLAUDE.md "Decisions already made" for why,
+// and for when to delete the split.
+export const CARD_COUNT = 5;
+export const FIRST_PAINT_COUNT = 2;
+
 // Field keys are English (structural, never shown to the user); the location
 // fields' *names* match Location's values, which stay Spanish. String values
 // throughout are whatever language they naturally are — the user's own
@@ -15,6 +22,11 @@ export const SuggestRequest = z.object({
   condimentos: z.string(),
   notes: z.string().optional(),
   exclude: z.array(z.string()).optional(),
+  // How many cards to generate this call. Optional and defaults to
+  // CARD_COUNT server-side — only the client's two-phase first load ever
+  // sends anything else. Clamped again in the Worker; never trust a client
+  // number without re-checking it server-side.
+  count: z.number().int().min(1).max(CARD_COUNT).optional(),
 });
 export type SuggestRequest = z.infer<typeof SuggestRequest>;
 
@@ -57,6 +69,9 @@ export type CardWithImage = z.infer<typeof CardWithImage>;
 
 export const SuggestResponse = z.object({
   v: z.literal(1),
-  cards: z.array(CardWithImage).length(5),
+  // Not .length(CARD_COUNT) — a request can ask for fewer (see `count` on
+  // SuggestRequest, and the first-batch split under Prefetching in
+  // CLAUDE.md).
+  cards: z.array(CardWithImage).min(1).max(CARD_COUNT),
 });
 export type SuggestResponse = z.infer<typeof SuggestResponse>;

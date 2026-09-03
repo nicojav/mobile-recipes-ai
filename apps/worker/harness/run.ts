@@ -7,6 +7,10 @@ import { SuggestRequest, SuggestResponse } from "@mobile-recipes/shared";
 const SCENARIOS_DIR = join(import.meta.dirname, "scenarios");
 const OUTPUT_DIR = join(import.meta.dirname, "output");
 const TARGET_URL = process.env.WORKER_URL ?? "http://localhost:8787/suggest";
+// Required since milestone 4's abuse protection — this harness predates it
+// and used to run against an unauthenticated /suggest. Set APP_SECRET to the
+// same value as the Worker's (apps/worker/.dev.vars for a local run).
+const APP_SECRET = process.env.APP_SECRET ?? "";
 
 interface ScenarioResult {
   name: string;
@@ -56,7 +60,7 @@ async function runScenario(file: string, runDir: string): Promise<ScenarioResult
     try {
       const res = await fetch(TARGET_URL, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", "X-App-Secret": APP_SECRET },
         body: JSON.stringify(parsedRequest.data),
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });

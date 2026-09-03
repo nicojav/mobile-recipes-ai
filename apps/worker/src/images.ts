@@ -29,3 +29,80 @@ export async function generateImage(env: Env, imagePrompt: string): Promise<Uint
   }
   return base64ToBytes(result.image);
 }
+
+// In-flight generation dedupe, keyed by R2 key. Without this, the Worker's
+// own early image warm (kicked off from handleSuggest via ctx.waitUntil) and
+// the client's Image.prefetch hitting the same key moments later would each
+// call FLUX and each `put` to R2. Per-isolate only — two isolates handling
+// concurrent requests can still duplicate a generation, same as before this
+// existed; this only removes the *guaranteed* duplicate within one isolate.
+const inFlight = new Map<string, Promise<Uint8Array>>();
+
+// Dev-only usage counter, so the daily Workers AI budget (see CLAUDE.md's
+// Free tier ceilings — 10,000 neurons/day, ~57.6 neurons/image) is visible
+// without digging through curl or wrangler's observability API, which is how
+// the quota-exhaustion 502s during progressive-loading testing got diagnosed
+// the first time. In-memory only, per isolate: it counts generations since
+// this dev server last started, not Cloudflare's actual server-side quota
+// (which persists across restarts and doesn't reset just because this
+// counter did) — a during-this-session debug aid, not an authoritative
+// ledger. Exposed via GET /debug/image-usage in index.ts; the client only
+// shows it when __DEV__.
+const NEURONS_PER_IMAGE = 57.6;
+const DAILY_NEURON_BUDGET = 10_000;
+export const ESTIMATED_DAILY_IMAGE_LIMIT = Math.floor(DAILY_NEURON_BUDGET / NEURONS_PER_IMAGE);
+
+let generatedThisSession = 0;
+// Sticky once true — cleared on the next successful generation, not on a
+// non-quota failure, so a single unrelated FLUX error doesn't silently drop
+// the "we're out for today" signal.
+let quotaExceeded = false;
+
+export interface ImageUsageSnapshot {
+  generatedThisSession: number;
+  estimatedDailyLimit: number;
+  quotaExceeded: boolean;
+}
+
+export function imageUsageSnapshot(): ImageUsageSnapshot {
+  return { generatedThisSession, estimatedDailyLimit: ESTIMATED_DAILY_IMAGE_LIMIT, quotaExceeded };
+}
+
+// Matches Workers AI's own error code for this condition (confirmed against
+// the real error text: "4006: you have used up your daily free allocation of
+// 10,000 neurons...") rather than the English sentence, which Cloudflare
+// could reword without changing the code. Best-effort — this only feeds a
+// debug counter, not anything correctness-critical.
+function isQuotaExceededError(err: unknown): boolean {
+  return err instanceof Error && /\b4006\b/.test(err.message);
+}
+
+// R2-check → generate → store, shared by handleImage's lazy path and the
+// early warm path. Returns cached bytes on a hit; otherwise generates once
+// per key even under concurrent callers.
+export async function ensureImage(env: Env, key: string, imagePrompt: string): Promise<Uint8Array> {
+  const cached = await env.RECIPE_IMAGES.get(key);
+  if (cached) {
+    return new Uint8Array(await cached.arrayBuffer());
+  }
+
+  let pending = inFlight.get(key);
+  if (!pending) {
+    pending = (async () => {
+      try {
+        const bytes = await generateImage(env, imagePrompt);
+        generatedThisSession++;
+        quotaExceeded = false;
+        await env.RECIPE_IMAGES.put(key, bytes, { httpMetadata: { contentType: "image/jpeg" } });
+        return bytes;
+      } catch (err) {
+        if (isQuotaExceededError(err)) quotaExceeded = true;
+        throw err;
+      } finally {
+        inFlight.delete(key);
+      }
+    })();
+    inFlight.set(key, pending);
+  }
+  return pending;
+}

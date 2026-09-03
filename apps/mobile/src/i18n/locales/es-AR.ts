@@ -38,8 +38,8 @@ export const esAR = {
     ],
     error: "No se pudo conectar. Probá de nuevo.",
     retry: "Reintentar",
-    discard: "Descartar",
-    like: "Me gusta",
+    previous: "Anterior",
+    next: "Siguiente",
   },
   detail: {
     back: "Volver",

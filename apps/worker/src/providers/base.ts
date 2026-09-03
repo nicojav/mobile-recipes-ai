@@ -1,4 +1,4 @@
-import type { Card, SuggestRequest } from "@mobile-recipes/shared";
+import { CARD_COUNT, type Card, type SuggestRequest } from "@mobile-recipes/shared";
 import { parseCardsPayload } from "./schema";
 import { ProviderError, type CardProvider } from "./types";
 
@@ -25,7 +25,7 @@ export abstract class BaseCardProvider implements CardProvider {
       throw new ProviderError(this.name, "response missing expected payload", raw);
     }
 
-    return parseCardsPayload(this.name, payload);
+    return parseCardsPayload(this.name, payload, request.count ?? CARD_COUNT);
   }
 
   /**

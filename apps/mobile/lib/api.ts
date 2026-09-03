@@ -66,7 +66,10 @@ async function postSuggest(body: SuggestRequest): Promise<unknown> {
   throw new Error('suggest request failed: exhausted retries');
 }
 
-export async function fetchSuggestions(notes: string, exclude: string[]): Promise<CardWithImage[]> {
+// `count` defaults to a full batch server-side when omitted — the only
+// caller that passes it is the deck's two-phase first load (2 cards, then
+// 3), a Groq streaming workaround. See CLAUDE.md "Decisions already made".
+export async function fetchSuggestions(notes: string, exclude: string[], count?: number): Promise<CardWithImage[]> {
   const active = db.select().from(itemsTable).where(eq(itemsTable.active, true)).all() as Item[];
 
   const body = SuggestRequest.parse({
@@ -78,6 +81,7 @@ export async function fetchSuggestions(notes: string, exclude: string[]): Promis
     condimentos: joinSpanish(namesFor(active, 'condimentos')),
     notes: notes.trim() || undefined,
     exclude: exclude.length > 0 ? exclude : undefined,
+    count,
   });
 
   const json = await postSuggest(body);

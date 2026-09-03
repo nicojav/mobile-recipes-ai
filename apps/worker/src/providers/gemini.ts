@@ -1,8 +1,8 @@
 import { z } from "zod";
-import type { SuggestRequest } from "@mobile-recipes/shared";
+import { CARD_COUNT, type SuggestRequest } from "@mobile-recipes/shared";
 import { buildSystemPrompt, buildUserPrompt } from "../prompt";
 import { BaseCardProvider } from "./base";
-import { CardsPayload } from "./schema";
+import { cardsPayloadFor } from "./schema";
 import { ProviderError } from "./types";
 
 // CLAUDE.md says 2.5 Flash-Lite, but Google retired it for new API keys
@@ -65,12 +65,23 @@ function toGeminiSchema(node: JSONSchemaNode): JSONSchemaNode {
   };
 }
 
-const geminiResponseSchema = toGeminiSchema(z.toJSONSchema(CardsPayload, { target: "openapi-3.0" }));
+// Memoized per count since the first batch of a session asks for fewer than
+// CARD_COUNT — see the note on cardsPayloadFor in providers/schema.ts.
+const geminiSchemaCache = new Map<number, JSONSchemaNode>();
+function geminiResponseSchemaFor(count: number): JSONSchemaNode {
+  let schema = geminiSchemaCache.get(count);
+  if (!schema) {
+    schema = toGeminiSchema(z.toJSONSchema(cardsPayloadFor(count), { target: "openapi-3.0" }));
+    geminiSchemaCache.set(count, schema);
+  }
+  return schema;
+}
 
 class GeminiProvider extends BaseCardProvider {
   readonly name = "gemini";
 
   protected async callModel(request: SuggestRequest, env: Env): Promise<unknown> {
+    const count = request.count ?? CARD_COUNT;
     const res = await fetch(GEMINI_URL, {
       method: "POST",
       headers: {
@@ -78,11 +89,11 @@ class GeminiProvider extends BaseCardProvider {
         "x-goog-api-key": env.GEMINI_KEY,
       },
       body: JSON.stringify({
-        systemInstruction: { parts: [{ text: buildSystemPrompt() }] },
-        contents: [{ role: "user", parts: [{ text: buildUserPrompt(request) }] }],
+        systemInstruction: { parts: [{ text: buildSystemPrompt(count) }] },
+        contents: [{ role: "user", parts: [{ text: buildUserPrompt(request, count) }] }],
         generationConfig: {
           responseMimeType: "application/json",
-          responseSchema: geminiResponseSchema,
+          responseSchema: geminiResponseSchemaFor(count),
         },
       }),
     });

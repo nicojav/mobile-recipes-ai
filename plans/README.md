@@ -62,6 +62,64 @@ judgment, not just passing tests:
   `CLAUDE.md` → Decisions already made for why `es-AR` and not a generic
   `es-419`.
 
+## Post-Phase-1 changes
+
+Phase 1 (above) is complete. Changes made after it don't get their own
+numbered milestone file unless they're large enough to warrant one — this
+section is a short log of the smaller ones, newest first.
+
+- **Deck swipe redesign: back/next instead of discard/like** (2026-09-03):
+  swiping is now book-style pagination — left for next, right for back,
+  the horizontal-pager convention (Photos, Instagram stories, most
+  carousels) — replacing the original Tinder-style discard/like swipe.
+  Reversed because the two original directions had never actually done
+  anything different (both just advanced; the ✕/♥ stamps were purely
+  decorative — nothing was ever saved or discarded by swiping, only Detail's
+  `Guardar`), while real use surfaced a genuine want: revisiting a card
+  already swiped past. Note the swipe *direction* went through a second
+  correction the same day — first built as the literal "swipe left = back,
+  like turning a book page," then flipped to left = next / right = back
+  once on-device testing showed the literal reading felt backwards, matching
+  the muscle memory of pretty much every other horizontal-paging app instead.
+  The ‹ / › buttons aren't swipes, so they keep their own arrow-matching
+  direction (‹ exits left, › exits right) regardless of which way that
+  action's swipe drags. Going back needed no new caching — `cards` was
+  already an append-only array (see the progressive-loading entry below),
+  so every card shown so far was already sitting there; "back" is just
+  showing the array at a lower index. See `CLAUDE.md` → Screens → Deck for
+  the full description, and `apps/mobile/src/app/deck.tsx`'s `SwipeCard`
+  for the one real subtlety: a "back" action with nowhere to go back to (the
+  first card of a batch) has to spring the card back to center rather than
+  fly it off-screen, since the index wouldn't change and the card wouldn't
+  remount to reset its position.
+  - [ ] On-device (Expo Go): swipe left = next, swipe right = back, and the
+        ‹/› buttons both feel right; going back and then forward again shows
+        the identical cards (no flicker, no re-fetch); a "back" attempt on
+        the very first card of a batch springs back instead of getting stuck
+        off-screen
+
+- **First-batch progressive loading** (2026-09-03): the deck's first
+  suggestion batch is split into two Worker calls — 2 cards rendered
+  immediately, the remaining 3 fetched in the background — instead of
+  waiting on all 5. **This is a workaround for a Groq limitation**: Groq
+  doesn't support streaming together with structured-output JSON schema
+  validation, which is what this project relies on to keep the card shape
+  reliable. Full rationale, and the exact trigger for reverting this once the
+  provider changes, is in `CLAUDE.md` → "Decisions already made — don't
+  relitigate". Status: **done**, pending the verification steps below.
+  - [ ] Typecheck clean across `packages/shared`, `apps/worker`, `apps/mobile`
+  - [ ] Worker locally: `count: 2` and `count: 3` requests each return the
+        right number of cards; `exclude` prevents overlap between them
+  - [ ] Image warm: a card's `imageUrl` resolves fast after `/suggest`
+        returns (warm already ran), and concurrent requests for the same key
+        don't trigger two FLUX runs
+  - [ ] Scenario harness Variety axis holds up against the pre-change runs in
+        `apps/worker/harness/output/` — the real risk of this change, not
+        latency
+  - [ ] On-device (Expo Go): first card appears sooner, counter never shows
+        a wrong total, cards 3–5 append without a visible flicker, swiping
+        fast past card 2 shows the loading state and recovers cleanly
+
 ## Keeping `CLAUDE.md` current
 
 `CLAUDE.md` says its own maintainer should update it — and offer the edit unprompted
