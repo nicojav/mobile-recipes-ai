@@ -27,6 +27,7 @@ export const esAR = {
     elaborate: "Elaborada",
   },
   deck: {
+    back: "Volver",
     counter: "{{current}} de {{total}}",
     minutes: "{{count}} min",
     missing: "Te falta:",
@@ -41,6 +42,7 @@ export const esAR = {
     like: "Me gusta",
   },
   detail: {
+    back: "Volver",
     servings: "{{count}} porciones",
     ingredients: "Ingredientes",
     steps: "Preparación",
@@ -51,6 +53,7 @@ export const esAR = {
     cookedCount_other: "La cocinaste {{count}} veces",
   },
   saved: {
+    back: "Volver",
     title: "Guardadas",
     empty: "Todavía no guardaste ninguna receta.",
   },

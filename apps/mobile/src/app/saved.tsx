@@ -36,6 +36,17 @@ export default function SavedScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
+        <View style={styles.header}>
+          <Pressable
+            accessibilityLabel={t('saved.back')}
+            onPress={() => router.back()}
+            style={[styles.backButton, { backgroundColor: theme.backgroundElement }]}
+          >
+            <ThemedText type="title" style={styles.backGlyph}>
+              ‹
+            </ThemedText>
+          </Pressable>
+        </View>
         <ThemedText type="title" style={styles.title}>
           {t('saved.title')}
         </ThemedText>
@@ -91,6 +102,21 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     width: '100%',
     maxWidth: MaxContentWidth,
+  },
+  header: {
+    flexDirection: 'row',
+    paddingTop: Spacing.two,
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backGlyph: {
+    fontSize: 26,
+    lineHeight: 26,
   },
   title: {
     fontSize: 28,

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Image } from 'expo-image';
 import { eq } from 'drizzle-orm';
@@ -81,89 +81,100 @@ export default function DetailScreen() {
     setCookedCount((c) => c + 1);
   }
 
-  if (!card) {
-    return <ThemedView style={styles.container} />;
-  }
-
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          <View style={[styles.imageArea, { backgroundColor: theme.backgroundSelected }]}>
-            <ThemedText style={styles.imagePlaceholderGlyph}>🍳</ThemedText>
-            <Image source={{ uri: card.imageUrl }} style={StyleSheet.absoluteFill} contentFit="cover" transition={300} />
-          </View>
-
-          <ThemedText type="subtitle" style={styles.title}>
-            {card.title}
-          </ThemedText>
-
-          <View style={styles.badgeRow}>
-            <Badge label={t('deck.minutes', { count: card.minutes })} />
-            <Badge label={t(`effort.${card.effort}`)} />
-            <Badge label={t('detail.servings', { count: card.servings })} />
-          </View>
-
-          <ThemedText type="default" themeColor="textSecondary">
-            {card.description}
-          </ThemedText>
-
-          <View style={styles.section}>
-            <ThemedText type="smallBold" style={styles.sectionTitle}>
-              {t('detail.ingredients')}
-            </ThemedText>
-            {card.ingredients.map((ingredient) => (
-              <View key={ingredient.name} style={styles.ingredientRow}>
-                <ThemedText type="default" style={ingredient.have ? undefined : styles.missingMark}>
-                  {ingredient.have ? '✓' : '–'}
-                </ThemedText>
-                <ThemedText type="default" themeColor={ingredient.have ? 'text' : 'textSecondary'} style={styles.ingredientName}>
-                  {ingredient.name}
-                </ThemedText>
-                <ThemedText type="small" themeColor="textSecondary">
-                  {ingredient.quantity}
-                </ThemedText>
-              </View>
-            ))}
-          </View>
-
-          <View style={styles.section}>
-            <ThemedText type="smallBold" style={styles.sectionTitle}>
-              {t('detail.steps')}
-            </ThemedText>
-            {card.steps.map((step, i) => (
-              <View key={i} style={styles.stepRow}>
-                <ThemedText type="smallBold" themeColor="textSecondary" style={styles.stepNumber}>
-                  {i + 1}
-                </ThemedText>
-                <ThemedText type="default" style={styles.stepText}>
-                  {step}
-                </ThemedText>
-              </View>
-            ))}
-          </View>
-
-          {cookedCount > 0 && (
-            <ThemedText type="small" themeColor="textSecondary">
-              {t('detail.cookedCount', { count: cookedCount })}
-            </ThemedText>
-          )}
-        </ScrollView>
-
-        <View style={styles.actions}>
+        <View style={styles.header}>
           <Pressable
-            disabled={!!savedId}
-            onPress={handleSave}
-            style={[styles.actionButton, { backgroundColor: theme.backgroundElement }]}
+            accessibilityLabel={t('detail.back')}
+            onPress={() => router.back()}
+            style={[styles.backButton, { backgroundColor: theme.backgroundElement }]}
           >
-            <ThemedText type="smallBold">{savedId ? t('detail.saved') : t('detail.save')}</ThemedText>
-          </Pressable>
-          <Pressable onPress={handleCooked} style={[styles.actionButton, { backgroundColor: theme.text }]}>
-            <ThemedText type="smallBold" style={{ color: scheme === 'dark' ? Colors.dark.background : Colors.light.background }}>
-              {t('detail.cooked')}
+            <ThemedText type="title" style={styles.backGlyph}>
+              ‹
             </ThemedText>
           </Pressable>
         </View>
+        {!card ? null : (
+          <>
+            <ScrollView contentContainerStyle={styles.scrollContent}>
+              <View style={[styles.imageArea, { backgroundColor: theme.backgroundSelected }]}>
+                <ThemedText style={styles.imagePlaceholderGlyph}>🍳</ThemedText>
+                <Image source={{ uri: card.imageUrl }} style={StyleSheet.absoluteFill} contentFit="cover" transition={300} />
+              </View>
+
+              <ThemedText type="subtitle" style={styles.title}>
+                {card.title}
+              </ThemedText>
+
+              <View style={styles.badgeRow}>
+                <Badge label={t('deck.minutes', { count: card.minutes })} />
+                <Badge label={t(`effort.${card.effort}`)} />
+                <Badge label={t('detail.servings', { count: card.servings })} />
+              </View>
+
+              <ThemedText type="default" themeColor="textSecondary">
+                {card.description}
+              </ThemedText>
+
+              <View style={styles.section}>
+                <ThemedText type="smallBold" style={styles.sectionTitle}>
+                  {t('detail.ingredients')}
+                </ThemedText>
+                {card.ingredients.map((ingredient) => (
+                  <View key={ingredient.name} style={styles.ingredientRow}>
+                    <ThemedText type="default" style={ingredient.have ? undefined : styles.missingMark}>
+                      {ingredient.have ? '✓' : '–'}
+                    </ThemedText>
+                    <ThemedText type="default" themeColor={ingredient.have ? 'text' : 'textSecondary'} style={styles.ingredientName}>
+                      {ingredient.name}
+                    </ThemedText>
+                    <ThemedText type="small" themeColor="textSecondary">
+                      {ingredient.quantity}
+                    </ThemedText>
+                  </View>
+                ))}
+              </View>
+
+              <View style={styles.section}>
+                <ThemedText type="smallBold" style={styles.sectionTitle}>
+                  {t('detail.steps')}
+                </ThemedText>
+                {card.steps.map((step, i) => (
+                  <View key={i} style={styles.stepRow}>
+                    <ThemedText type="smallBold" themeColor="textSecondary" style={styles.stepNumber}>
+                      {i + 1}
+                    </ThemedText>
+                    <ThemedText type="default" style={styles.stepText}>
+                      {step}
+                    </ThemedText>
+                  </View>
+                ))}
+              </View>
+
+              {cookedCount > 0 && (
+                <ThemedText type="small" themeColor="textSecondary">
+                  {t('detail.cookedCount', { count: cookedCount })}
+                </ThemedText>
+              )}
+            </ScrollView>
+
+            <View style={styles.actions}>
+              <Pressable
+                disabled={!!savedId}
+                onPress={handleSave}
+                style={[styles.actionButton, { backgroundColor: theme.backgroundElement }]}
+              >
+                <ThemedText type="smallBold">{savedId ? t('detail.saved') : t('detail.save')}</ThemedText>
+              </Pressable>
+              <Pressable onPress={handleCooked} style={[styles.actionButton, { backgroundColor: theme.text }]}>
+                <ThemedText type="smallBold" style={{ color: scheme === 'dark' ? Colors.dark.background : Colors.light.background }}>
+                  {t('detail.cooked')}
+                </ThemedText>
+              </Pressable>
+            </View>
+          </>
+        )}
       </SafeAreaView>
     </ThemedView>
   );
@@ -189,6 +200,22 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     width: '100%',
     maxWidth: MaxContentWidth,
+  },
+  header: {
+    flexDirection: 'row',
+    paddingHorizontal: Spacing.three,
+    paddingTop: Spacing.two,
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backGlyph: {
+    fontSize: 26,
+    lineHeight: 26,
   },
   scrollContent: {
     paddingHorizontal: Spacing.three,
