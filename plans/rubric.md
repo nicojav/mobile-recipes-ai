@@ -21,6 +21,12 @@ note is what actually drives the next prompt edit):
 - **Image fidelity** — leave blank until milestone 3 step 5 produces real
   images (`imagePrompt` can still be spot-checked for being English and
   physical-description-style before then).
+- **Calorie plausibility** — is `calories` in the right ballpark *per
+  serving* for the dish and its ingredient list? A giveaway that the model
+  read it as a whole-recipe total instead: a 4-serving stew reporting
+  something like 2400 kcal, or a light salad reporting 900. Doesn't need
+  precision, just the right order of magnitude and consistency with
+  `servings`.
 
 ## What each scenario is testing
 

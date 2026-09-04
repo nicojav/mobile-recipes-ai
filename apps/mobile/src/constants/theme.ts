@@ -39,6 +39,15 @@ export const Colors = {
 
 export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
 
+// Calorie-chip ramp — light → hearty, deliberately not good → bad (see Design.md).
+// Each stop is ≥4.5:1 against a white label; interpolated values sit between
+// adjacent stops, so the whole ramp passes. Scheme-independent, same reasoning
+// as `accent` above: contrast is measured against the white label, not the page.
+export const CalorieRamp = ['#4B6B4F', '#8A5A06', '#A24B2A'] as const;
+
+// kcal per serving mapped onto the ramp; values outside are clamped.
+export const CalorieRange = { min: 250, max: 900 } as const;
+
 // Google Fonts loaded via useFonts in _layout.tsx (@expo-google-fonts/sora,
 // @expo-google-fonts/work-sans) — these are the exact family names those
 // packages register, not arbitrary strings.

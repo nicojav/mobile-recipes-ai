@@ -26,6 +26,7 @@ import { DevImageQuotaBar } from '@/components/dev-image-quota-bar';
 import { BackButton } from '@/components/back-button';
 import { PrimaryButton } from '@/components/primary-button';
 import { Badge } from '@/components/badge';
+import { CalorieBadge } from '@/components/calorie-badge';
 import { Bowl, ChevronLeft, ChevronRight } from '@/components/icons';
 import { Spacing, BottomTabInset, MaxContentWidth, Radius } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -397,6 +398,7 @@ const SwipeCard = forwardRef<
           <View style={styles.badgeRow}>
             <Badge label={t('deck.minutes', { count: card.minutes })} />
             <Badge label={t(`effort.${card.effort}`)} />
+            <CalorieBadge calories={card.calories} />
           </View>
           <ThemedText type="default" themeColor="textSecondary">
             {card.description}
@@ -505,6 +507,7 @@ const styles = StyleSheet.create({
   },
   badgeRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: Spacing.two,
   },
   actions: {

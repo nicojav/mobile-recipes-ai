@@ -49,6 +49,11 @@ export const Card = z.object({
   minutes: z.number(),
   effort: Effort,
   servings: z.number(),
+  // Per serving, not for the whole recipe — the model is told this explicitly
+  // in the Worker's system prompt, since the field name alone is ambiguous and
+  // models guess. A rough home-cooking estimate; this is a browsing signal, not
+  // nutrition data (see CLAUDE.md, principle 1).
+  calories: z.number(),
   ingredients: z.array(Ingredient),
   steps: z.array(z.string()),
   // English, describing the dish physically rather than naming it — see
@@ -66,6 +71,12 @@ export const CardWithImage = Card.extend({
   imageUrl: z.string(),
 });
 export type CardWithImage = z.infer<typeof CardWithImage>;
+
+// A card read back out of SQLite, where the JSON was written by an older build.
+// The read path parses these without validating (see apps/mobile/src/app/saved.tsx),
+// so anything added to Card after the first release has to be optional here or the
+// compiler will vouch for a field that isn't there.
+export type StoredCard = Omit<CardWithImage, "calories"> & { calories?: number };
 
 export const SuggestResponse = z.object({
   v: z.literal(1),

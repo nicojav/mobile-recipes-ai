@@ -5,7 +5,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Image } from 'expo-image';
 import { eq } from 'drizzle-orm';
-import type { CardWithImage as Card } from '@mobile-recipes/shared';
+import type { StoredCard as Card } from '@mobile-recipes/shared';
 
 import { db, initDb } from '@db/client';
 import { savedRecipes as savedRecipesTable } from '@db/schema';
@@ -14,6 +14,7 @@ import { ThemedView } from '@/components/themed-view';
 import { BackButton } from '@/components/back-button';
 import { PrimaryButton } from '@/components/primary-button';
 import { Badge } from '@/components/badge';
+import { CalorieBadge } from '@/components/calorie-badge';
 import { Bowl, CheckCircle, OpenCircle } from '@/components/icons';
 import { Radius, Spacing, MaxContentWidth } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -103,6 +104,7 @@ export default function DetailScreen() {
                 <Badge label={t('deck.minutes', { count: card.minutes })} />
                 <Badge label={t(`effort.${card.effort}`)} />
                 <Badge label={t('detail.servings', { count: card.servings })} />
+                <CalorieBadge calories={card.calories} />
               </View>
 
               <ThemedText type="default" themeColor="textSecondary">

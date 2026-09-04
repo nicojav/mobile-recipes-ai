@@ -5,7 +5,7 @@ import { desc } from 'drizzle-orm';
 import { useTranslation } from 'react-i18next';
 import { router } from 'expo-router';
 import { Image } from 'expo-image';
-import type { CardWithImage as Card } from '@mobile-recipes/shared';
+import type { StoredCard as Card } from '@mobile-recipes/shared';
 
 import { db, initDb } from '@db/client';
 import { savedRecipes as savedRecipesTable } from '@db/schema';
@@ -13,17 +13,34 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BackButton } from '@/components/back-button';
 import { Badge } from '@/components/badge';
+import { CalorieBadge } from '@/components/calorie-badge';
 import { Bowl } from '@/components/icons';
 import { Radius, Spacing, MaxContentWidth } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
-type SavedRow = { id: string; title: string; card: Card; minutes: number; effort: Card['effort']; imageUrl: string };
+type SavedRow = {
+  id: string;
+  title: string;
+  card: Card;
+  minutes: number;
+  effort: Card['effort'];
+  calories?: number;
+  imageUrl: string;
+};
 
 function loadSaved(): SavedRow[] {
   const rows = db.select().from(savedRecipesTable).orderBy(desc(savedRecipesTable.savedAt)).all();
   return rows.map((row) => {
     const card = JSON.parse(row.card) as Card;
-    return { id: row.id, title: row.title, card, minutes: card.minutes, effort: card.effort, imageUrl: card.imageUrl };
+    return {
+      id: row.id,
+      title: row.title,
+      card,
+      minutes: card.minutes,
+      effort: card.effort,
+      calories: card.calories,
+      imageUrl: card.imageUrl,
+    };
   });
 }
 
@@ -71,6 +88,7 @@ export default function SavedScreen() {
                   <View style={styles.badgeRow}>
                     <Badge label={t('deck.minutes', { count: item.minutes })} />
                     <Badge label={t(`effort.${item.effort}`)} />
+                    <CalorieBadge calories={item.calories} />
                   </View>
                 </View>
               </Pressable>
@@ -131,6 +149,7 @@ const styles = StyleSheet.create({
   },
   badgeRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: Spacing.two,
   },
 });

@@ -68,7 +68,9 @@ In:
 Explicitly out — do not build these, do not leave hooks for them:
 
 - User accounts, auth, backend database, sync
-- Nutrition data of any kind
+- Nutrition data of any kind, beyond the single per-serving calorie estimate
+  on each card (added post-Phase-1, see "Decisions already made") — no
+  macros, no daily targets, no tracking over time
 - Photo-based fridge capture, voice input
 - Quantities, expiry dates, shopping lists
 
@@ -283,6 +285,9 @@ The system prompt lives in the Worker. It must:
 - Vary effort across the five cards — not five 40-minute dishes
 - Flag missing ingredients via `have: false`, never silently drop a recipe
 - Treat `freezer` items as needing planning ahead (affects `effort`)
+- Estimate `calories` **per serving** (consistent with `servings`), not for the
+  whole recipe — ambiguous otherwise, and models will guess. A rough
+  home-cooking estimate, not nutrition data (see principle 1)
 - Write `imagePrompt` in **English**, describing the dish physically rather than
   naming it (see image pipeline below)
 
@@ -465,3 +470,21 @@ Score each batch of five on:
   across the batch. The client is not a blocker: `expo/fetch` already
   supports streaming response bodies (`response.body` is a real
   `ReadableStream`).
+- Cards carry one calorie number: an estimate **per serving**, not per
+  recipe — this is the anticipated use of `"v": 1` (see API contract), not a
+  scope violation of "no nutrition data." Shown as a gradient chip
+  (`CalorieBadge`) alongside the time/effort badges on Deck, Detalle, and
+  Guardadas, ramped continuously (not discrete tiers) across a fixed
+  `CalorieRange` (`apps/mobile/src/constants/theme.ts`). The ramp
+  (`CalorieRamp`, sage → ochre → terracotta) is deliberately **not** a
+  green→red warning scale — it reads as light → hearty, not good → bad,
+  which would break principle 5's "knowledgeable friend" tone and edge
+  toward the nutrition-tracker product this app explicitly isn't (principle
+  1). Don't extend it toward red/`danger` later without revisiting that
+  call. It's also the app's first and only gradient (`expo-linear-gradient`)
+  — see `Design.md`'s Components section for why that's a bounded exception,
+  not precedent for more of them. Saved recipes written before this field
+  existed have no `calories` in their stored JSON; the read path types that
+  as `StoredCard` (`packages/shared/src/api.ts`) rather than assuming the
+  field is always present, and `CalorieBadge` renders nothing when it's
+  absent.

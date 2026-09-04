@@ -37,6 +37,7 @@ export const esAR = {
     back: "Volver",
     counter: "{{current}} de {{total}}",
     minutes: "{{count}} min",
+    calories: "{{count}} kcal",
     missing: "Te falta:",
     loadingLines: [
       "Pensando qué darte de comer…",

@@ -50,6 +50,14 @@ export const Colors = {
 } as const;
 ```
 
+```ts
+// Calorie-chip ramp — light → hearty, deliberately not good → bad (see below).
+// One set of values for both schemes, same reasoning as `accent`: contrast is
+// against the white label, not the page background.
+export const CalorieRamp = ['#4B6B4F', '#8A5A06', '#A24B2A'] as const; // sage → ochre → terracotta, ≥4.5:1 vs. white at every stop
+export const CalorieRange = { min: 250, max: 900 } as const; // kcal/serving mapped onto the ramp, clamped at both ends
+```
+
 Notes:
 - `accent` is one value in both schemes when used as a **fill** (chip fill, card
   border-highlight, CTA fill) — contrast is between the fill and its white
@@ -189,6 +197,14 @@ at the same time as the restyle.
 - **`Badge`** — small pill, `border`, `textSecondary` label, `small` type.
   Unifies the count badge (bento card), the time/effort badges (deck card),
   and the servings badge (detail).
+- **`CalorieBadge`** — same pill silhouette as `Badge`, but a filled
+  `CalorieRamp` gradient with a white `smallBold` label, positioned in the
+  deck/detail/saved badge row. Color encodes calories-per-serving; the
+  number is always shown alongside it, so the state is never color-only
+  (see Accessibility below). **This is the app's one gradient** — everything
+  else in Mercado is flat fills and 1px borders. It's justified only because
+  the color itself carries information here; it isn't license to reach for
+  gradients elsewhere in the app.
 - **`IngredientRow`** (detail screen) — check/x replaced by the filled/open
   circle icon pair described above; missing items use the `missing` color
   token, not a hardcoded hex.
