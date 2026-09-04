@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useRef } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 
 import { Radius, Spacing } from '@/constants/theme';
@@ -9,6 +10,10 @@ type ChipProps = {
   label: string;
   active: boolean;
   onPress?: () => void;
+  // Delete affordance for the bottom-sheet's chips — see index.tsx's
+  // pendingDelete. Not used by the bento card's non-interactive preview chips.
+  onLongPress?: () => void;
+  delayLongPress?: number;
   compact?: boolean;
   // Non-interactive: used for a bento card's chip preview (tapping the card,
   // not an individual chip, opens the sheet) and the "+N más" tag.
@@ -21,7 +26,7 @@ type ChipProps = {
   accent?: boolean;
 };
 
-export function Chip({ label, active, onPress, compact, disabled, dashed, accent }: ChipProps) {
+export function Chip({ label, active, onPress, onLongPress, delayLongPress = 500, compact, disabled, dashed, accent }: ChipProps) {
   const theme = useTheme();
   const borderStyle: 'dashed' | 'solid' = dashed ? 'dashed' : 'solid';
   const fillStyle = active
@@ -29,11 +34,51 @@ export function Chip({ label, active, onPress, compact, disabled, dashed, accent
     : { backgroundColor: 'transparent', borderColor: accent ? theme.accent : theme.border, borderStyle };
   const textColor = accent ? theme.accentText : undefined;
 
+  // Driven by a manual JS timer rather than Pressable's built-in
+  // onLongPress/delayLongPress — that combo was unreliable on iOS at the 2s
+  // delay this needs (see index.tsx's delete confirm): it either never fired
+  // or fired onPress as well on release. onPressIn/onPressOut sidesteps
+  // Pressability's internal long-press state machine entirely.
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressFired = useRef(false);
+
+  useEffect(() => () => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+  }, []);
+
+  const handlePressIn = useCallback(() => {
+    if (!onLongPress) return;
+    longPressFired.current = false;
+    longPressTimer.current = setTimeout(() => {
+      longPressFired.current = true;
+      onLongPress();
+    }, delayLongPress);
+  }, [onLongPress, delayLongPress]);
+
+  const handlePressOut = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }, []);
+
+  const handlePress = useCallback(() => {
+    // A long press that already fired shouldn't also register as a tap once
+    // the finger lifts.
+    if (longPressFired.current) {
+      longPressFired.current = false;
+      return;
+    }
+    onPress?.();
+  }, [onPress]);
+
   return (
     <Pressable
       accessibilityRole={disabled ? undefined : 'button'}
       accessibilityState={disabled ? undefined : { selected: active }}
-      onPress={disabled ? undefined : onPress}
+      onPress={disabled ? undefined : handlePress}
+      onPressIn={disabled ? undefined : handlePressIn}
+      onPressOut={disabled ? undefined : handlePressOut}
       disabled={disabled}
       hitSlop={6}
       style={({ pressed }) => [

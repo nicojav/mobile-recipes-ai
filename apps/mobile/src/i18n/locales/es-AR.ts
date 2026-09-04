@@ -11,6 +11,10 @@ export const esAR = {
     sheetClose: "Cerrar",
     add: "Agregar",
     addPlaceholder: "¿Qué agregás?",
+    deleteTitle: '¿Eliminar "{{name}}"?',
+    deleteBody: "No vas a poder deshacer esto.",
+    deleteConfirm: "Eliminar",
+    deleteCancel: "Cancelar",
   },
   // Display labels only — the underlying Location values (freezer, heladera,
   // alacena, condimentos, cajon) are the wire/storage format and stay as-is;

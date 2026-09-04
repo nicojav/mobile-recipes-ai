@@ -21,6 +21,7 @@ export const Colors = {
     accentText: '#4B6B4F', // accent used as text/outline — light bg needs no separate shade
     accentTint: '#EAF0EA', // count-badge / selected-zone fill
     missing: '#8A5A06', // "Te falta:" — 5.92:1 on surface
+    danger: '#B3261E', // delete-confirm button
   },
   dark: {
     background: '#17181A',
@@ -32,6 +33,7 @@ export const Colors = {
     accentText: '#6B8F70', // accent as text/outline on dark bg — 4.90:1 (base accent only ~3:1 here)
     accentTint: '#233026',
     missing: '#E3A039', // 7.91:1 on background
+    danger: '#E5695F', // delete-confirm button, lightened for dark bg
   },
 } as const;
 

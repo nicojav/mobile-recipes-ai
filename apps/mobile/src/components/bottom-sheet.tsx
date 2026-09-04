@@ -12,12 +12,19 @@ export function BottomSheet({
   title,
   children,
   footer,
+  overlay,
 }: {
   visible: boolean;
   onClose: () => void;
   title: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  // Rendered on top of the sheet, inside this same native Modal — e.g. a
+  // delete-confirm dialog (see ConfirmDialog / index.tsx's pendingDelete).
+  // iOS won't reliably present a second <Modal> while this one is still up
+  // (the new presentation silently no-ops), so anything that needs to
+  // interrupt the sheet has to live inside it rather than stack its own.
+  overlay?: React.ReactNode;
 }) {
   const { t } = useTranslation();
   const theme = useTheme();
@@ -45,6 +52,7 @@ export function BottomSheet({
           <ScrollView contentContainerStyle={styles.body}>{children}</ScrollView>
           {footer && <View style={styles.footer}>{footer}</View>}
         </View>
+        {overlay}
       </View>
     </Modal>
   );

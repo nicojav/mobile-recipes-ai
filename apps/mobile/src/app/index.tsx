@@ -13,6 +13,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { LocationCard } from '@/components/location-card';
 import { BottomSheet } from '@/components/bottom-sheet';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import { FloatingCTA } from '@/components/floating-cta';
 import { PrimaryButton } from '@/components/primary-button';
 import { Chip } from '@/components/chip';
@@ -39,6 +40,9 @@ export default function KitchenScreen() {
 
   const [items, setItems] = useState<Item[]>([]);
   const [openLocation, setOpenLocation] = useState<Location | null>(null);
+  // The chip a 2s long-press is asking to delete — non-null shows the
+  // ConfirmDialog. Cleared on confirm, cancel, or backdrop tap.
+  const [pendingDelete, setPendingDelete] = useState<Item | null>(null);
   // Whether the sheet's "Agregar" trigger has been swapped for its input —
   // reset whenever the sheet itself closes, see closeSheet below.
   const [addingNew, setAddingNew] = useState(false);
@@ -82,10 +86,17 @@ export default function KitchenScreen() {
     Haptics.selectionAsync().catch(() => {});
   }
 
+  function deleteItem(item: Item) {
+    db.delete(itemsTable).where(eq(itemsTable.id, item.id)).run();
+    setItems((prev) => prev.filter((i) => i.id !== item.id));
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+  }
+
   function closeSheet() {
     setOpenLocation(null);
     setAddingNew(false);
     setDraftName('');
+    setPendingDelete(null);
   }
 
   // The bento card's + button — skips straight to the input instead of
@@ -155,10 +166,34 @@ export default function KitchenScreen() {
             : ''
         }
         footer={<PrimaryButton label={t('kitchen.sheetDone')} onPress={closeSheet} />}
+        overlay={
+          <ConfirmDialog
+            visible={pendingDelete !== null}
+            title={t('kitchen.deleteTitle', { name: pendingDelete?.name ?? '' })}
+            body={t('kitchen.deleteBody')}
+            confirmLabel={t('kitchen.deleteConfirm')}
+            cancelLabel={t('kitchen.deleteCancel')}
+            onCancel={() => setPendingDelete(null)}
+            onConfirm={() => {
+              if (pendingDelete) deleteItem(pendingDelete);
+              setPendingDelete(null);
+            }}
+          />
+        }
       >
         <View style={styles.sheetChips}>
           {openItems.map((item) => (
-            <Chip key={item.id} label={item.name} active={item.active} onPress={() => toggleItem(item)} />
+            <Chip
+              key={item.id}
+              label={item.name}
+              active={item.active}
+              onPress={() => toggleItem(item)}
+              onLongPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+                setPendingDelete(item);
+              }}
+              delayLongPress={2000}
+            />
           ))}
           {addingNew ? (
             <View style={[styles.addInput, { borderColor: theme.accent }]}>
