@@ -40,15 +40,10 @@ export const seedItems: Item[] = [
     "arroz",
     "fideos",
     "salsa de tomate",
-  ]),
-  ...group("condimentos", [
-    "ají molido",
-    "comino",
-    "pimentón",
-    "orégano",
     "harina leudante",
     "harina 0000",
     "harina 000",
   ]),
+  ...group("condimentos", ["ají molido", "comino", "pimentón", "orégano"]),
   ...group("cajon", ["papas", "batata", "cebolla"]),
 ];
