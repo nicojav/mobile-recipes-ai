@@ -32,7 +32,7 @@ export function BottomSheet({
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <View style={styles.root}>
-        <Pressable style={StyleSheet.absoluteFillObject} onPress={onClose} />
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         <View style={[styles.sheet, { backgroundColor: theme.surface }]}>
           <View style={styles.handleRow}>
             <View style={[styles.handle, { backgroundColor: theme.border }]} />

@@ -32,7 +32,7 @@ export function ConfirmDialog({
 
   return (
     <View style={styles.root}>
-      <Pressable style={StyleSheet.absoluteFillObject} onPress={onCancel} />
+      <Pressable style={StyleSheet.absoluteFill} onPress={onCancel} />
       <View style={[styles.card, { backgroundColor: theme.surface }]}>
         <ThemedText type="sheetTitle">{title}</ThemedText>
         {body && (
@@ -69,7 +69,7 @@ const styles = StyleSheet.create({
   // Modal root, so it needs to claim the full area itself to sit over
   // everything else in that Modal.
   root: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(20,20,20,0.35)',
