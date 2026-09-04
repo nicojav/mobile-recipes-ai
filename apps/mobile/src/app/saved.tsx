@@ -10,7 +10,9 @@ import { db, initDb } from '@db/client';
 import { savedRecipes as savedRecipesTable } from '@db/schema';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Spacing, MaxContentWidth } from '@/constants/theme';
+import { BackButton } from '@/components/back-button';
+import { Badge } from '@/components/badge';
+import { Radius, Spacing, MaxContentWidth } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 type SavedRow = { id: string; title: string; card: Card; minutes: number; effort: Card['effort'] };
@@ -37,15 +39,7 @@ export default function SavedScreen() {
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.header}>
-          <Pressable
-            accessibilityLabel={t('saved.back')}
-            onPress={() => router.back()}
-            style={[styles.backButton, { backgroundColor: theme.backgroundElement }]}
-          >
-            <ThemedText type="title" style={styles.backGlyph}>
-              ‹
-            </ThemedText>
-          </Pressable>
+          <BackButton accessibilityLabel={t('saved.back')} onPress={() => router.back()} />
         </View>
         <ThemedText type="title" style={styles.title}>
           {t('saved.title')}
@@ -62,12 +56,11 @@ export default function SavedScreen() {
             contentContainerStyle={styles.list}
             renderItem={({ item }) => (
               <Pressable
+                accessibilityRole="button"
                 onPress={() => router.push({ pathname: '/detail/[id]', params: { id: item.id } })}
-                style={[styles.row, { backgroundColor: theme.backgroundElement }]}
+                style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}
               >
-                <ThemedText type="default" style={styles.rowTitle}>
-                  {item.title}
-                </ThemedText>
+                <ThemedText type="default">{item.title}</ThemedText>
                 <View style={styles.badgeRow}>
                   <Badge label={t('deck.minutes', { count: item.minutes })} />
                   <Badge label={t(`effort.${item.effort}`)} />
@@ -78,17 +71,6 @@ export default function SavedScreen() {
         )}
       </SafeAreaView>
     </ThemedView>
-  );
-}
-
-function Badge({ label }: { label: string }) {
-  const theme = useTheme();
-  return (
-    <View style={[styles.badge, { backgroundColor: theme.backgroundSelected }]}>
-      <ThemedText type="small" themeColor="textSecondary">
-        {label}
-      </ThemedText>
-    </View>
   );
 }
 
@@ -107,20 +89,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingTop: Spacing.two,
   },
-  backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  backGlyph: {
-    fontSize: 26,
-    lineHeight: 26,
-  },
   title: {
-    fontSize: 28,
-    lineHeight: 34,
     paddingTop: Spacing.two,
     paddingBottom: Spacing.three,
   },
@@ -133,20 +102,13 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.three,
   },
   row: {
-    borderRadius: Spacing.two,
+    borderRadius: Radius.card,
+    borderWidth: 1,
     padding: Spacing.three,
     gap: Spacing.two,
-  },
-  rowTitle: {
-    fontSize: 17,
   },
   badgeRow: {
     flexDirection: 'row',
     gap: Spacing.two,
-  },
-  badge: {
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.one,
-    borderRadius: 999,
   },
 });

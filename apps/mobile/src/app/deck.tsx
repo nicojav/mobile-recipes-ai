@@ -23,9 +23,12 @@ import { fetchSuggestions } from '@lib/api';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { DevImageQuotaBar } from '@/components/dev-image-quota-bar';
-import { Colors, Spacing, BottomTabInset, MaxContentWidth } from '@/constants/theme';
+import { BackButton } from '@/components/back-button';
+import { PrimaryButton } from '@/components/primary-button';
+import { Badge } from '@/components/badge';
+import { Bowl, ChevronLeft, ChevronRight } from '@/components/icons';
+import { Spacing, BottomTabInset, MaxContentWidth, Radius } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 
 const SWIPE_THRESHOLD = 120;
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -42,7 +45,6 @@ export default function DeckScreen() {
   const notes = notesParam ?? '';
   const { t } = useTranslation();
 
-  const theme = useTheme();
   const [status, setStatus] = useState<Status>('loading');
   const [cards, setCards] = useState<Card[]>([]);
   const [index, setIndex] = useState(0);
@@ -233,15 +235,7 @@ export default function DeckScreen() {
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.header}>
-          <Pressable
-            accessibilityLabel={t('deck.back')}
-            onPress={() => router.back()}
-            style={[styles.backButton, { backgroundColor: theme.backgroundElement }]}
-          >
-            <ThemedText type="title" style={styles.backGlyph}>
-              ‹
-            </ThemedText>
-          </Pressable>
+          <BackButton accessibilityLabel={t('deck.back')} onPress={() => router.back()} />
         </View>
         {__DEV__ && <DevImageQuotaBar />}
         {(status === 'loading' || status === 'waiting') && <LoadingView />}
@@ -279,23 +273,25 @@ function Actions({ cardRef, canGoBack }: { cardRef: React.RefObject<SwipeCardHan
   return (
     <View style={styles.actions}>
       <Pressable
+        accessibilityRole="button"
         accessibilityLabel={t('deck.previous')}
         onPress={() => cardRef.current?.dismiss('back')}
         disabled={!canGoBack}
-        style={[styles.actionButton, { backgroundColor: theme.backgroundElement }, !canGoBack && styles.actionButtonDisabled]}
+        style={[
+          styles.actionButton,
+          { backgroundColor: theme.surface, borderColor: theme.border },
+          !canGoBack && styles.actionButtonDisabled,
+        ]}
       >
-        <ThemedText type="title" style={styles.actionGlyph}>
-          ‹
-        </ThemedText>
+        <ChevronLeft size={22} color={theme.text} />
       </Pressable>
       <Pressable
+        accessibilityRole="button"
         accessibilityLabel={t('deck.next')}
         onPress={() => cardRef.current?.dismiss('next')}
-        style={[styles.actionButton, { backgroundColor: theme.backgroundElement }]}
+        style={[styles.actionButton, { backgroundColor: theme.surface, borderColor: theme.border }]}
       >
-        <ThemedText type="title" style={styles.actionGlyph}>
-          ›
-        </ThemedText>
+        <ChevronRight size={22} color={theme.text} />
       </Pressable>
     </View>
   );
@@ -388,18 +384,16 @@ const SwipeCard = forwardRef<
 
   return (
     <GestureDetector gesture={gesture}>
-      <Animated.View style={[styles.card, { backgroundColor: theme.backgroundElement }, cardStyle]}>
-        <View style={[styles.imagePlaceholder, { backgroundColor: theme.backgroundSelected }]}>
-          <ThemedText style={styles.imagePlaceholderGlyph}>🍳</ThemedText>
-          {/* Absolute over the emoji placeholder — the placeholder stays visible
-              underneath (and thus unblocking) until this cross-dissolves in. */}
+      <Animated.View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1 }, cardStyle]}>
+        <View style={[styles.imagePlaceholder, { backgroundColor: theme.accentTint }]}>
+          <Bowl size={48} color={theme.accentText} />
+          {/* Absolute over the placeholder icon — it stays visible underneath
+              (and thus unblocking) until this cross-dissolves in. */}
           <Image source={{ uri: card.imageUrl }} style={StyleSheet.absoluteFill} contentFit="cover" transition={300} />
         </View>
 
         <View style={styles.cardBody}>
-          <ThemedText type="subtitle" style={styles.cardTitle}>
-            {card.title}
-          </ThemedText>
+          <ThemedText type="cardTitle">{card.title}</ThemedText>
           <View style={styles.badgeRow}>
             <Badge label={t('deck.minutes', { count: card.minutes })} />
             <Badge label={t(`effort.${card.effort}`)} />
@@ -408,7 +402,7 @@ const SwipeCard = forwardRef<
             {card.description}
           </ThemedText>
           {missing.length > 0 && (
-            <ThemedText type="small" style={styles.missing}>
+            <ThemedText type="small" style={{ color: theme.missing }}>
               {t('deck.missing')} {missing.map((ingredient) => ingredient.name).join(', ')}
             </ThemedText>
           )}
@@ -418,22 +412,12 @@ const SwipeCard = forwardRef<
   );
 });
 
-function Badge({ label }: { label: string }) {
-  const theme = useTheme();
-  return (
-    <View style={[styles.badge, { backgroundColor: theme.backgroundSelected }]}>
-      <ThemedText type="small" themeColor="textSecondary">
-        {label}
-      </ThemedText>
-    </View>
-  );
-}
-
 // The 2-4s wait for a suggestion batch is the moment most likely to make the
 // app feel cheap (see CLAUDE.md "Not yet designed") — a plain spinner isn't
 // enough, so this pulses a glyph and cycles a few voseo lines instead.
 function LoadingView() {
   const { t } = useTranslation();
+  const theme = useTheme();
   const pulse = useSharedValue(0);
   const [lineIndex, setLineIndex] = useState(0);
   const lines = t('deck.loadingLines', { returnObjects: true }) as unknown as string[];
@@ -461,7 +445,9 @@ function LoadingView() {
 
   return (
     <View style={styles.centerFill}>
-      <Animated.Text style={[styles.loadingGlyph, glyphStyle]}>🍳</Animated.Text>
+      <Animated.View style={glyphStyle}>
+        <Bowl size={56} color={theme.textSecondary} />
+      </Animated.View>
       <ThemedText type="default" themeColor="textSecondary" style={styles.loadingLine}>
         {lines[lineIndex]}
       </ThemedText>
@@ -471,18 +457,12 @@ function LoadingView() {
 
 function ErrorView({ onRetry }: { onRetry: () => void }) {
   const { t } = useTranslation();
-  const theme = useTheme();
-  const scheme = useColorScheme();
   return (
     <View style={styles.centerFill}>
       <ThemedText type="default" themeColor="textSecondary" style={styles.loadingLine}>
         {t('deck.error')}
       </ThemedText>
-      <Pressable style={[styles.retryButton, { backgroundColor: theme.text }]} onPress={onRetry}>
-        <ThemedText style={{ color: scheme === 'dark' ? Colors.dark.background : Colors.light.background }} type="smallBold">
-          {t('deck.retry')}
-        </ThemedText>
-      </Pressable>
+      <PrimaryButton label={t('deck.retry')} onPress={onRetry} style={styles.retryButton} />
     </View>
   );
 }
@@ -502,17 +482,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingTop: Spacing.two,
   },
-  backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  backGlyph: {
-    fontSize: 26,
-    lineHeight: 26,
-  },
   counter: {
     textAlign: 'center',
     paddingVertical: Spacing.two,
@@ -522,7 +491,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   card: {
-    borderRadius: Spacing.three,
+    borderRadius: Radius.card,
     overflow: 'hidden',
   },
   imagePlaceholder: {
@@ -530,28 +499,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  imagePlaceholderGlyph: {
-    fontSize: 56,
-  },
   cardBody: {
     padding: Spacing.three,
     gap: Spacing.two,
   },
-  cardTitle: {
-    fontSize: 24,
-    lineHeight: 30,
-  },
   badgeRow: {
     flexDirection: 'row',
     gap: Spacing.two,
-  },
-  badge: {
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.one,
-    borderRadius: 999,
-  },
-  missing: {
-    color: '#b8860b',
   },
   actions: {
     flexDirection: 'row',
@@ -564,14 +518,12 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
   actionButtonDisabled: {
     opacity: 0.35,
-  },
-  actionGlyph: {
-    fontSize: 24,
   },
   centerFill: {
     flex: 1,
@@ -579,17 +531,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: Spacing.three,
   },
-  loadingGlyph: {
-    fontSize: 64,
-  },
   loadingLine: {
     textAlign: 'center',
   },
   retryButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: Spacing.two,
-    paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.four,
   },
 });

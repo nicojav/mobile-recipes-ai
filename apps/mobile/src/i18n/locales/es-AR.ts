@@ -1,13 +1,16 @@
 export const esAR = {
   kitchen: {
     title: "Mi cocina",
+    subtitle: "{{count}} de {{total}} ingredientes",
     notesPlaceholder: 'algo suelto que compraste, tipo "cherry y un morrón"',
-    findIdeas: "Buscar ideas",
+    findIdeas: "Buscar ideas · {{count}}",
     viewSaved: "Guardadas",
-  },
-  group: {
-    show: "mostrar",
-    hide: "ocultar",
+    more: "+{{count}} más",
+    locationCount: "{{active}} de {{total}}",
+    sheetDone: "Listo",
+    sheetClose: "Cerrar",
+    add: "Agregar",
+    addPlaceholder: "¿Qué agregás?",
   },
   // Display labels only — the underlying Location values (freezer, heladera,
   // alacena, condimentos, cajon) are the wire/storage format and stay as-is;

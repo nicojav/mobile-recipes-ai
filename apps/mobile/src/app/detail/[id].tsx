@@ -11,9 +11,12 @@ import { db, initDb } from '@db/client';
 import { savedRecipes as savedRecipesTable } from '@db/schema';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Colors, Spacing, MaxContentWidth } from '@/constants/theme';
+import { BackButton } from '@/components/back-button';
+import { PrimaryButton } from '@/components/primary-button';
+import { Badge } from '@/components/badge';
+import { Bowl, CheckCircle, OpenCircle } from '@/components/icons';
+import { Radius, Spacing, MaxContentWidth } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 
 // No uuid dependency in the app yet — this is unique enough for a
 // single-device, single-user recipe list.
@@ -25,7 +28,6 @@ export default function DetailScreen() {
   const { id, card: cardParam } = useLocalSearchParams<{ id: string; card?: string }>();
   const { t } = useTranslation();
   const theme = useTheme();
-  const scheme = useColorScheme();
 
   const [card, setCard] = useState<Card | null>(null);
   // null = not yet in saved_recipes. Set once "Guardar" or "La cociné" (which
@@ -85,27 +87,17 @@ export default function DetailScreen() {
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.header}>
-          <Pressable
-            accessibilityLabel={t('detail.back')}
-            onPress={() => router.back()}
-            style={[styles.backButton, { backgroundColor: theme.backgroundElement }]}
-          >
-            <ThemedText type="title" style={styles.backGlyph}>
-              ‹
-            </ThemedText>
-          </Pressable>
+          <BackButton accessibilityLabel={t('detail.back')} onPress={() => router.back()} />
         </View>
         {!card ? null : (
           <>
             <ScrollView contentContainerStyle={styles.scrollContent}>
-              <View style={[styles.imageArea, { backgroundColor: theme.backgroundSelected }]}>
-                <ThemedText style={styles.imagePlaceholderGlyph}>🍳</ThemedText>
+              <View style={[styles.imageArea, { backgroundColor: theme.accentTint }]}>
+                <Bowl size={48} color={theme.accentText} />
                 <Image source={{ uri: card.imageUrl }} style={StyleSheet.absoluteFill} contentFit="cover" transition={300} />
               </View>
 
-              <ThemedText type="subtitle" style={styles.title}>
-                {card.title}
-              </ThemedText>
+              <ThemedText type="cardTitle">{card.title}</ThemedText>
 
               <View style={styles.badgeRow}>
                 <Badge label={t('deck.minutes', { count: card.minutes })} />
@@ -118,14 +110,16 @@ export default function DetailScreen() {
               </ThemedText>
 
               <View style={styles.section}>
-                <ThemedText type="smallBold" style={styles.sectionTitle}>
+                <ThemedText type="micro" themeColor="textSecondary">
                   {t('detail.ingredients')}
                 </ThemedText>
                 {card.ingredients.map((ingredient) => (
                   <View key={ingredient.name} style={styles.ingredientRow}>
-                    <ThemedText type="default" style={ingredient.have ? undefined : styles.missingMark}>
-                      {ingredient.have ? '✓' : '–'}
-                    </ThemedText>
+                    {ingredient.have ? (
+                      <CheckCircle size={16} color={theme.text} />
+                    ) : (
+                      <OpenCircle size={16} color={theme.missing} />
+                    )}
                     <ThemedText type="default" themeColor={ingredient.have ? 'text' : 'textSecondary'} style={styles.ingredientName}>
                       {ingredient.name}
                     </ThemedText>
@@ -137,7 +131,7 @@ export default function DetailScreen() {
               </View>
 
               <View style={styles.section}>
-                <ThemedText type="smallBold" style={styles.sectionTitle}>
+                <ThemedText type="micro" themeColor="textSecondary">
                   {t('detail.steps')}
                 </ThemedText>
                 {card.steps.map((step, i) => (
@@ -161,33 +155,19 @@ export default function DetailScreen() {
 
             <View style={styles.actions}>
               <Pressable
+                accessibilityRole="button"
                 disabled={!!savedId}
                 onPress={handleSave}
-                style={[styles.actionButton, { backgroundColor: theme.backgroundElement }]}
+                style={[styles.saveButton, { backgroundColor: theme.surface, borderColor: theme.border }]}
               >
                 <ThemedText type="smallBold">{savedId ? t('detail.saved') : t('detail.save')}</ThemedText>
               </Pressable>
-              <Pressable onPress={handleCooked} style={[styles.actionButton, { backgroundColor: theme.text }]}>
-                <ThemedText type="smallBold" style={{ color: scheme === 'dark' ? Colors.dark.background : Colors.light.background }}>
-                  {t('detail.cooked')}
-                </ThemedText>
-              </Pressable>
+              <PrimaryButton label={t('detail.cooked')} onPress={handleCooked} style={styles.cookedButton} />
             </View>
           </>
         )}
       </SafeAreaView>
     </ThemedView>
-  );
-}
-
-function Badge({ label }: { label: string }) {
-  const theme = useTheme();
-  return (
-    <View style={[styles.badge, { backgroundColor: theme.backgroundSelected }]}>
-      <ThemedText type="small" themeColor="textSecondary">
-        {label}
-      </ThemedText>
-    </View>
   );
 }
 
@@ -206,17 +186,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     paddingTop: Spacing.two,
   },
-  backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  backGlyph: {
-    fontSize: 26,
-    lineHeight: 26,
-  },
   scrollContent: {
     paddingHorizontal: Spacing.three,
     paddingBottom: Spacing.three,
@@ -224,33 +193,18 @@ const styles = StyleSheet.create({
   },
   imageArea: {
     height: 220,
-    borderRadius: Spacing.three,
+    borderRadius: Radius.card,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  imagePlaceholderGlyph: {
-    fontSize: 56,
-  },
-  title: {
-    fontSize: 24,
-    lineHeight: 30,
   },
   badgeRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: Spacing.two,
   },
-  badge: {
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.one,
-    borderRadius: 999,
-  },
   section: {
     gap: Spacing.two,
-  },
-  sectionTitle: {
-    textTransform: 'uppercase',
   },
   ingredientRow: {
     flexDirection: 'row',
@@ -259,11 +213,6 @@ const styles = StyleSheet.create({
   },
   ingredientName: {
     flex: 1,
-  },
-  // Amber, not red — a missing ingredient is informational, never an error.
-  // Matches the deck's `Te falta:` line (see CLAUDE.md Principles #3).
-  missingMark: {
-    color: '#b8860b',
   },
   stepRow: {
     flexDirection: 'row',
@@ -281,11 +230,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
   },
-  actionButton: {
+  saveButton: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: Spacing.two,
+    borderRadius: Radius.small,
+    borderWidth: 1,
     paddingVertical: Spacing.three,
+  },
+  cookedButton: {
+    flex: 1,
   },
 });

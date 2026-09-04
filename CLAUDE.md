@@ -331,9 +331,17 @@ built around. A generic `es-419` ("Latin American Spanish") locale was
 considered and rejected: it doesn't imply voseo, and this app's whole voice
 (`pelá`, `cortá`) depends on it. See `apps/mobile/src/i18n`.
 
-1. **Mi cocina** — chips grouped by location, tap to toggle active. Free-text
-   quick-add at top. `Buscar ideas` CTA at bottom. Condimentos/cajón collapsed.
-   Chips over checkbox rows: ~30 items fits on one screen instead of four.
+Visual system — color tokens, type scale, icon set, and the Mi cocina bento
+layout — is `Design.md` at the repo root. Chosen from a canvas exploration
+(2026-09-03): sage/off-white "Mercado" style, Sora + Work Sans, a location-card
+bento grid with a bottom sheet replacing the old accordion groups. Read it
+before touching any screen's styling.
+
+1. **Mi cocina** — bento grid, one card per location, tap to toggle active
+   chips inside via a bottom sheet. Free-text quick-add at top. Floating
+   `Buscar ideas` CTA. Chips over checkbox rows: ~30 items fits on one screen
+   instead of four. See `Design.md` for the card/sheet/CTA spec — this
+   replaced an earlier stacked-accordion-groups layout.
 2. **Deck** — one card visible, `2 de 5` counter, swipe or tap ‹ / › to move
    back and forth through the batch. Book-style navigation, not Tinder-style
    decide-and-discard: cards already shown stay in place, so going back and

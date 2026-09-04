@@ -1,10 +1,20 @@
 import { Platform, StyleSheet, Text, type TextProps } from 'react-native';
 
-import { Fonts, ThemeColor } from '@/constants/theme';
+import { Fonts, FontFamily, ThemeColor } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 export type ThemedTextProps = TextProps & {
-  type?: 'default' | 'title' | 'small' | 'smallBold' | 'subtitle' | 'link' | 'linkPrimary' | 'code';
+  type?:
+    | 'default'
+    | 'title'
+    | 'cardTitle'
+    | 'sheetTitle'
+    | 'button'
+    | 'small'
+    | 'smallBold'
+    | 'micro'
+    | 'link'
+    | 'code';
   themeColor?: ThemeColor;
 };
 
@@ -17,11 +27,13 @@ export function ThemedText({ style, type = 'default', themeColor, ...rest }: The
         { color: theme[themeColor ?? 'text'] },
         type === 'default' && styles.default,
         type === 'title' && styles.title,
+        type === 'cardTitle' && styles.cardTitle,
+        type === 'sheetTitle' && styles.sheetTitle,
+        type === 'button' && styles.button,
         type === 'small' && styles.small,
         type === 'smallBold' && styles.smallBold,
-        type === 'subtitle' && styles.subtitle,
+        type === 'micro' && styles.micro,
         type === 'link' && styles.link,
-        type === 'linkPrimary' && styles.linkPrimary,
         type === 'code' && styles.code,
         style,
       ]}
@@ -30,40 +42,57 @@ export function ThemedText({ style, type = 'default', themeColor, ...rest }: The
   );
 }
 
+// See Design.md → Type scale. Sora for headings/buttons, Work Sans for
+// everything else — fontFamily carries the weight (these are the exact
+// registered family names per weight), so these styles never also set
+// fontWeight alongside it.
 const styles = StyleSheet.create({
-  small: {
-    fontSize: 14,
-    lineHeight: 20,
-    fontWeight: 500,
+  title: {
+    fontFamily: FontFamily.heading,
+    fontSize: 27,
+    lineHeight: 33,
   },
-  smallBold: {
+  cardTitle: {
+    fontFamily: FontFamily.heading,
+    fontSize: 22,
+    lineHeight: 28,
+  },
+  sheetTitle: {
+    fontFamily: FontFamily.heading,
+    fontSize: 18,
+    lineHeight: 24,
+  },
+  button: {
+    fontFamily: FontFamily.headingSemiBold,
     fontSize: 14,
     lineHeight: 20,
-    fontWeight: 700,
   },
   default: {
+    fontFamily: FontFamily.body,
     fontSize: 16,
     lineHeight: 24,
-    fontWeight: 500,
   },
-  title: {
-    fontSize: 48,
-    fontWeight: 600,
-    lineHeight: 52,
+  small: {
+    fontFamily: FontFamily.body,
+    fontSize: 14,
+    lineHeight: 20,
   },
-  subtitle: {
-    fontSize: 32,
-    lineHeight: 44,
-    fontWeight: 600,
+  smallBold: {
+    fontFamily: FontFamily.bodyBold,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  micro: {
+    fontFamily: FontFamily.bodyBold,
+    fontSize: 11,
+    lineHeight: 14,
+    textTransform: 'uppercase',
+    letterSpacing: 0.9, // ~0.08em at 11px
   },
   link: {
-    lineHeight: 30,
+    fontFamily: FontFamily.bodySemiBold,
     fontSize: 14,
-  },
-  linkPrimary: {
     lineHeight: 30,
-    fontSize: 14,
-    color: '#3c87f7',
   },
   code: {
     fontFamily: Fonts.mono,
