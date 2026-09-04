@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { desc } from 'drizzle-orm';
 import { useTranslation } from 'react-i18next';
 import { router } from 'expo-router';
+import { Image } from 'expo-image';
 import type { CardWithImage as Card } from '@mobile-recipes/shared';
 
 import { db, initDb } from '@db/client';
@@ -12,16 +13,17 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BackButton } from '@/components/back-button';
 import { Badge } from '@/components/badge';
+import { Bowl } from '@/components/icons';
 import { Radius, Spacing, MaxContentWidth } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
-type SavedRow = { id: string; title: string; card: Card; minutes: number; effort: Card['effort'] };
+type SavedRow = { id: string; title: string; card: Card; minutes: number; effort: Card['effort']; imageUrl: string };
 
 function loadSaved(): SavedRow[] {
   const rows = db.select().from(savedRecipesTable).orderBy(desc(savedRecipesTable.savedAt)).all();
   return rows.map((row) => {
     const card = JSON.parse(row.card) as Card;
-    return { id: row.id, title: row.title, card, minutes: card.minutes, effort: card.effort };
+    return { id: row.id, title: row.title, card, minutes: card.minutes, effort: card.effort, imageUrl: card.imageUrl };
   });
 }
 
@@ -60,10 +62,16 @@ export default function SavedScreen() {
                 onPress={() => router.push({ pathname: '/detail/[id]', params: { id: item.id } })}
                 style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}
               >
-                <ThemedText type="default">{item.title}</ThemedText>
-                <View style={styles.badgeRow}>
-                  <Badge label={t('deck.minutes', { count: item.minutes })} />
-                  <Badge label={t(`effort.${item.effort}`)} />
+                <View style={[styles.thumbnail, { backgroundColor: theme.accentTint }]}>
+                  <Bowl size={24} color={theme.accentText} />
+                  <Image source={{ uri: item.imageUrl }} style={StyleSheet.absoluteFill} contentFit="cover" transition={300} />
+                </View>
+                <View style={styles.rowBody}>
+                  <ThemedText type="default">{item.title}</ThemedText>
+                  <View style={styles.badgeRow}>
+                    <Badge label={t('deck.minutes', { count: item.minutes })} />
+                    <Badge label={t(`effort.${item.effort}`)} />
+                  </View>
                 </View>
               </Pressable>
             )}
@@ -102,9 +110,23 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.three,
   },
   row: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderRadius: Radius.card,
     borderWidth: 1,
     padding: Spacing.three,
+    gap: Spacing.three,
+  },
+  thumbnail: {
+    width: 84,
+    height: 84,
+    borderRadius: Radius.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  rowBody: {
+    flex: 1,
     gap: Spacing.two,
   },
   badgeRow: {
