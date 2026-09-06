@@ -1,6 +1,6 @@
 // Thin-line SVG icon set — see Design.md → Icon set. Replaces the emoji/glyph
 // placeholders (‹ › ✓ – 🍳) that stood in for "no icon library."
-import { Path, Circle as SvgCircle, Svg, type SvgProps } from 'react-native-svg';
+import { Path, Circle as SvgCircle, Rect, Svg, type SvgProps } from 'react-native-svg';
 
 export type IconProps = {
   size?: number;
@@ -79,6 +79,17 @@ export function OpenCircle({ size, color }: IconProps) {
   return (
     <Icon size={size}>
       <SvgCircle cx="12" cy="12" r="9" stroke={color} strokeWidth={STROKE_WIDTH} strokeDasharray="3 3" />
+    </Icon>
+  );
+}
+
+// Mi cocina's nav link to the weekly calendar screen.
+export function CalendarIcon({ size, color }: IconProps) {
+  return (
+    <Icon size={size}>
+      <Rect x="4" y="5" width="16" height="15" rx="2" stroke={color} strokeWidth={STROKE_WIDTH} />
+      <Path d="M4 9.5h16" stroke={color} strokeWidth={STROKE_WIDTH} strokeLinecap="round" />
+      <Path d="M8 3v4M16 3v4" stroke={color} strokeWidth={STROKE_WIDTH} strokeLinecap="round" />
     </Icon>
   );
 }
