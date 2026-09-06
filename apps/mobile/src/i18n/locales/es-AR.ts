@@ -72,4 +72,16 @@ export const esAR = {
     title: "Guardadas",
     empty: "Todavía no guardaste ninguna receta.",
   },
+  calendar: {
+    navLink: "Calendario",
+    back: "Volver",
+    title: "Esta semana",
+    slotAlmuerzo: "Almuerzo",
+    slotCena: "Cena",
+    generate: "Generar receta",
+    regenerate: "Regenerar",
+    loading: "Pensando qué darte de comer…",
+    error: "No se pudo conectar. Probá de nuevo.",
+    retry: "Reintentar",
+  },
 } as const;

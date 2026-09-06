@@ -18,7 +18,7 @@ import { FloatingCTA } from '@/components/floating-cta';
 import { Toast } from '@/components/toast';
 import { PrimaryButton } from '@/components/primary-button';
 import { Chip } from '@/components/chip';
-import { Bookmark, Pencil } from '@/components/icons';
+import { Bookmark, CalendarIcon, Pencil } from '@/components/icons';
 import { Radius, Spacing, MaxContentWidth } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -127,10 +127,16 @@ export default function KitchenScreen() {
         <View style={styles.header}>
           <View style={styles.titleRow}>
             <ThemedText type="title">{t('kitchen.title')}</ThemedText>
-            <Pressable style={styles.savedLink} onPress={() => router.push('/saved')}>
-              <Bookmark size={14} color={theme.text} />
-              <ThemedText type="link">{t('kitchen.viewSaved')}</ThemedText>
-            </Pressable>
+            <View style={styles.headerLinks}>
+              <Pressable style={styles.savedLink} onPress={() => router.push('/calendar')}>
+                <CalendarIcon size={14} color={theme.text} />
+                <ThemedText type="link">{t('calendar.navLink')}</ThemedText>
+              </Pressable>
+              <Pressable style={styles.savedLink} onPress={() => router.push('/saved')}>
+                <Bookmark size={14} color={theme.text} />
+                <ThemedText type="link">{t('kitchen.viewSaved')}</ThemedText>
+              </Pressable>
+            </View>
           </View>
           <View
             style={[
@@ -258,6 +264,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
+  },
+  headerLinks: {
+    flexDirection: 'row',
+    gap: Spacing.three,
   },
   savedLink: {
     flexDirection: 'row',
