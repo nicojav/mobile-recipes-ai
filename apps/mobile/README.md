@@ -1,56 +1,91 @@
-# Welcome to your Expo app 👋
+# apps/mobile
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+The Expo (React Native + expo-router) app. Android-first. Holds all state
+locally and only touches the network to ask for suggestions and fetch dish
+images. See the [root README](../../README.md) for how this fits with the
+Worker and shared package, and [`CLAUDE.md`](../../CLAUDE.md) for the product
+spec (screens, prompt requirements, decisions already made).
 
-## Get started
-
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## Setup
 
 ```bash
-npm run reset-project
+npm install               # from repo root — this is an npm workspace
+cp apps/mobile/.env.example apps/mobile/.env
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Edit `.env`:
 
-### Other setup steps
+- `EXPO_PUBLIC_WORKER_URL` — the Worker's URL. On a real device over wifi,
+  `wrangler dev` only binds to your laptop's own interfaces, so this must be
+  your LAN IP (`http://192.168.1.x:8787`), not `localhost`. Simulator/web can
+  leave it unset.
+- `EXPO_PUBLIC_APP_SECRET` — must match the Worker's `APP_SECRET`, sent as
+  `X-App-Secret` on every `/suggest` call. This deters casual scraping of a
+  metered endpoint, not real auth (see `lib/api.ts`) — the app has no
+  accounts by design.
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+```bash
+npm run start -w apps/mobile
+```
 
-## Learn more
+Scan the QR with **Expo Go** on a real Android device. Test on-device, not
+just the simulator — the simulator won't tell you whether the swipe gesture
+feels right.
 
-To learn more about developing your project with Expo, look at the following resources:
+## Structure
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+```
+src/app/            expo-router screens (file-based routing)
+  index.tsx           Mi cocina — bento grid of locations, chip toggles, quick-add
+  deck.tsx            suggestion deck — swipeable cards, cuisine interstitial
+  saved.tsx           Guardadas — saved recipes list
+  _layout.tsx         fonts, theme, gesture-handler root
 
-## Join the community
+src/components/     screen-agnostic UI (Chip, Badge, BottomSheet, CalorieBadge, ...)
+src/i18n/           react-i18next setup + es-AR resource bundle (all UI copy)
+src/constants/      theme tokens (color, type scale, CalorieRange/CalorieRamp)
+src/hooks/          use-color-scheme, use-theme, use-calendar-plan
 
-Join our community of developers creating universal apps.
+db/                 expo-sqlite + Drizzle: schema.ts (items, saved_recipes), client.ts
+lib/api.ts          talks to the Worker: builds SuggestRequest, retry/backoff,
+                    reads items from SQLite
+```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## Data flow
+
+```mermaid
+flowchart TD
+    subgraph Screens
+        MiCocina["Mi cocina\n(src/app/index.tsx)"]
+        Deck["Deck\n(src/app/deck.tsx)"]
+        Detalle["Detalle\n(recipe detail)"]
+        Guardadas["Guardadas\n(src/app/saved.tsx)"]
+    end
+
+    SQLite[("expo-sqlite\nitems · saved_recipes")]
+    API["lib/api.ts"]
+    Worker(["Cloudflare Worker\nPOST /suggest · GET /img/:key"])
+
+    MiCocina -- "toggle chips,\nquick-add" --> SQLite
+    MiCocina -- "Buscar ideas" --> API
+    API -- "reads active items" --> SQLite
+    API -- "SuggestRequest\n(+ X-App-Secret)" --> Worker
+    Worker -- "SuggestResponse\n(cards + lazy imageUrl)" --> API
+    API --> Deck
+    Deck -- "tap card" --> Detalle
+    Detalle -- "Guardar" --> SQLite
+    Detalle -- "La cociné\n(cookedCount++)" --> SQLite
+    Guardadas -- "reads" --> SQLite
+
+    style SQLite fill:#eef6ee,stroke:#7a9a7a
+    style Worker fill:#fff4e6,stroke:#d99a4e
+```
+
+Everything under `Screens` and the SQLite store works fully offline. Only the
+`Buscar ideas` action and each card's lazy image fetch touch the network.
+
+## Other setup
+
+- Lint: `npm run lint -w apps/mobile` (`expo lint`, config in `eslint.config.js`)
+- Fresh starter template: `npm run reset-project -w apps/mobile` (moves the
+  original Expo starter aside — not something you want on this repo's `src/app`)
