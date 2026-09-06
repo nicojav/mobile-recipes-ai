@@ -1,4 +1,5 @@
 node_modules
+.expo/
 
 # skills content (fetched from GitHub, reproducible via `npx skills experimental_install`)
 .agents/
