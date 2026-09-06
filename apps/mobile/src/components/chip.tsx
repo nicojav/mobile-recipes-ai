@@ -24,14 +24,20 @@ type ChipProps = {
   // dashed "+N más" tag) so it reads as actionable, at the exact same size
   // as every other chip in the row rather than a separate, heavier block.
   accent?: boolean;
+  // LocationCard's preview chips only, where a photo sits behind the card
+  // (see Design.md → "Location photography"). Inactive chips are normally
+  // `transparent` (fine over a plain surface), but that reads as illegible
+  // over a photo — `glass` swaps in a frosted `theme.chipGlass` fill instead.
+  // No effect on `active` chips, which already have a solid accent fill.
+  glass?: boolean;
 };
 
-export function Chip({ label, active, onPress, onLongPress, delayLongPress = 500, compact, disabled, dashed, accent }: ChipProps) {
+export function Chip({ label, active, onPress, onLongPress, delayLongPress = 500, compact, disabled, dashed, accent, glass }: ChipProps) {
   const theme = useTheme();
   const borderStyle: 'dashed' | 'solid' = dashed ? 'dashed' : 'solid';
   const fillStyle = active
     ? { backgroundColor: theme.accent, borderColor: theme.accent }
-    : { backgroundColor: 'transparent', borderColor: accent ? theme.accent : theme.border, borderStyle };
+    : { backgroundColor: glass ? theme.chipGlass : 'transparent', borderColor: accent ? theme.accent : theme.border, borderStyle };
   const textColor = accent ? theme.accentText : undefined;
 
   // Driven by a manual JS timer rather than Pressable's built-in

@@ -1,8 +1,11 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import type { Item } from '@mobile-recipes/shared';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import type { Item, Location } from '@mobile-recipes/shared';
 
 import { Radius, Spacing } from '@/constants/theme';
+import { locationPhotos } from '@/constants/location-photos';
 import { useTheme } from '@/hooks/use-theme';
 import { Chip } from './chip';
 import { ThemedText } from './themed-text';
@@ -10,6 +13,7 @@ import { ThemedText } from './themed-text';
 const PREVIEW_COUNT = 3;
 
 export function LocationCard({
+  location,
   label,
   items,
   wide,
@@ -17,6 +21,9 @@ export function LocationCard({
   onToggleItem,
   onAdd,
 }: {
+  // Selects the card's background photo (locationPhotos) — kept separate
+  // from `label`, which is the already-translated i18n display string.
+  location: Location;
   label: string;
   items: Item[];
   wide?: boolean;
@@ -41,6 +48,14 @@ export function LocationCard({
       onPress={onPress}
       style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }, wide ? styles.wide : styles.half]}
     >
+      <Image source={locationPhotos[location]} style={StyleSheet.absoluteFill} contentFit="cover" pointerEvents="none" />
+      <LinearGradient
+        colors={[theme.scrimStart, theme.scrimEnd]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+      />
       <View style={styles.header}>
         <ThemedText type="smallBold">{label}</ThemedText>
         <View style={[styles.countBadge, { backgroundColor: theme.accentTint }]}>
@@ -51,10 +66,10 @@ export function LocationCard({
       </View>
       <View style={styles.chips}>
         {preview.map((item) => (
-          <Chip key={item.id} label={item.name} active={item.active} compact onPress={() => onToggleItem(item)} />
+          <Chip key={item.id} label={item.name} active={item.active} compact glass onPress={() => onToggleItem(item)} />
         ))}
-        {remaining > 0 && <Chip label={t('kitchen.more', { count: remaining })} active={false} compact disabled dashed />}
-        <Chip label={t('kitchen.add')} active={false} compact accent dashed onPress={onAdd} />
+        {remaining > 0 && <Chip label={t('kitchen.more', { count: remaining })} active={false} compact disabled dashed glass />}
+        <Chip label={t('kitchen.add')} active={false} compact accent dashed glass onPress={onAdd} />
       </View>
     </Pressable>
   );
@@ -66,6 +81,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: Spacing.three,
     gap: Spacing.two,
+    overflow: 'hidden', // clips the full-bleed photo to the card's radius
   },
   half: {
     flexBasis: '48%',

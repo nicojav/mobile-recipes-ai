@@ -58,6 +58,14 @@ export function Search({ size, color }: IconProps) {
   );
 }
 
+export function Pencil({ size, color }: IconProps) {
+  return (
+    <Icon size={size}>
+      <Path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3z" stroke={color} strokeWidth={STROKE_WIDTH} strokeLinecap="round" strokeLinejoin="round" />
+    </Icon>
+  );
+}
+
 export function CheckCircle({ size, color }: IconProps) {
   return (
     <Icon size={size}>

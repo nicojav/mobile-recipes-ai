@@ -22,6 +22,18 @@ export const Colors = {
     accentTint: '#EAF0EA', // count-badge / selected-zone fill
     missing: '#8A5A06', // "Te falta:" — 5.92:1 on surface
     danger: '#B3261E', // delete-confirm button
+    // LocationCard's full-bleed photo veil (see Design.md → "Location
+    // photography") — a top-left-to-bottom-right gradient over the photo, so
+    // it tints/textures the card rather than costing it any layout space.
+    // scrimStart sits under the label (denser), scrimEnd under the open
+    // corner (the photo shows through more there). Plain rgba, not an
+    // opacity on a flat color, so LinearGradient can interpolate between them.
+    scrimStart: 'rgba(255,255,255,0.96)',
+    scrimEnd: 'rgba(255,255,255,0.76)',
+    // Chip's inactive fill, used only where a chip can sit over a photo
+    // (LocationCard's preview row) — frosted-glass white so the label stays
+    // legible without fully occluding the image. See Chip's `glass` prop.
+    chipGlass: 'rgba(255,255,255,0.75)',
   },
   dark: {
     background: '#17181A',
@@ -34,6 +46,12 @@ export const Colors = {
     accentTint: '#233026',
     missing: '#E3A039', // 7.91:1 on background
     danger: '#E5695F', // delete-confirm button, lightened for dark bg
+    // Dark counterparts of the light-scheme values above — same geometry,
+    // veil tinted toward `surface` instead of white so a dark-mode card
+    // reads as a dark card with photo texture, not a washed-out photo.
+    scrimStart: 'rgba(30,31,33,0.92)',
+    scrimEnd: 'rgba(30,31,33,0.68)',
+    chipGlass: 'rgba(30,31,33,0.72)',
   },
 } as const;
 

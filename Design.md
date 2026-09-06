@@ -116,7 +116,8 @@ a dependency. Six core icons cover the whole app:
 | chevron-right | deck "next" | `›` |
 | x | bottom-sheet close | — (new) |
 | bookmark | "Guardadas" link | — (new) |
-| search | quick-add field, floating CTA | — (new) |
+| search | floating CTA | — (new) |
+| pencil | notes/quick-add field | — (new) |
 | check-circle / circle (outline) | ingredient have/missing rows | `✓ / –` |
 
 Plus one illustrative placeholder — a bowl-with-steam line mark — for the
@@ -125,6 +126,35 @@ recipe-image well before the real image loads, replacing the `🍳` emoji.
 Build these as a small local SVG icon set (`apps/mobile/src/components/icons/`),
 not a third-party icon font — five bespoke icons don't justify pulling in a
 whole set, and it keeps the exact stroke weight/style controlled.
+
+The notes/quick-add field on Mi cocina originally wore the `search` glyph. In
+use it read as an actual search box that filtered nothing when you typed in
+it — the icon promised behavior the field doesn't have (it's free text passed
+through as `notes`, not a filter; see `CLAUDE.md`). Swapped to `pencil`, which
+matches what the field actually does. `search` stays, scoped to the floating
+CTA only.
+
+Even with the icon fixed, the field gave no sign that its text would actually
+be used — nothing visibly happens on typing or on submit, since the only
+consumer is the next `Buscar ideas` tap. Fixed by borrowing the bottom sheet's
+existing "active input" pattern (`addInput`'s `borderColor: theme.accent`
+while adding an item): the notes pill's border switches from `border` to
+`accent` whenever it holds non-empty text, so there's a persistent visual cue
+that something will be carried into the next search, without adding a new
+copy string or a second control.
+
+That border cue is invisible once the keyboard is down (nothing on-screen
+still reads "typing"), so a second, momentary confirmation covers the moment
+you finish: on blur (return key or tapping away), a `Toast`
+(`apps/mobile/src/components/toast.tsx`) echoes the text back —
+`"cherry y un morrón" anotado para tu próxima búsqueda` — fading in above
+`FloatingCTA`, holding ~1.8s, fading out on its own. Deliberately not a
+native `Alert` or anything else requiring a tap: it's feedback, not a
+decision, and principle 2 rules out confirmation prompts. An AI-parse-and-
+place-in-the-grid modal was considered instead (typed text auto-sorted into
+locations) and rejected — it would parse free text, which `CLAUDE.md`
+explicitly decided against, and turn a disposable per-search note into
+tracked inventory, which principle 1 rules out.
 
 ## Radius, spacing, motion
 
@@ -143,6 +173,54 @@ card press         scale 0.97, withTiming 100ms
 chip toggle        scale 0.96 tap feedback, withSpring on release
 backdrop fade      withTiming 180ms
 ```
+
+## Location photography
+
+Each `LocationCard` on Mi cocina renders a full-bleed still-life photo behind
+its content, under a scrim — not the thin-line icon vocabulary the rest of
+this file specifies. This is a deliberate, scoped exception: a first pass
+tried a 96pt SVG "ghost watermark" glyph per location (same icon set as
+everywhere else), and it read as a big icon rather than imagery. Real photos
+looked better, so real photos won, even though they contradict the
+thin-line-only rule above. Don't "fix" this back to vector icons — it was
+tried and rejected on sight.
+
+- **The five photos** are `apps/mobile/assets/images/loc-*.jpg`, one per
+  `Location`, mapped in `apps/mobile/src/constants/location-photos.ts`
+  (`Record<Location, ImageSourcePropType>` — kept total on purpose, so a new
+  location fails to compile without a photo). They're bundled static assets,
+  not part of the `/suggest` image pipeline — the app never calls FLUX for
+  these at runtime. Generated once via the Worker's existing FLUX path
+  (`env.AI` → `@cf/black-forest-labs/flux-1-schnell`) and committed, same as
+  any other asset; replace by hand if one needs to change.
+- **Art direction**: two treatments, chosen per location rather than one
+  rule for all five. `alacena`, `condimentos`, and `cajon` are overhead
+  flat-lay stills on warm off-white linen, soft diffused natural light,
+  cream/sage palette, editorial-cookbook style. `freezer` and `heladera` are
+  **open-appliance shots** instead — the freezer drawer or fridge itself,
+  open, stocked with what actually lives there (vacuum-sealed chicken and
+  portioned cuts, frozen peas and berries, frost, in the freezer; cheese,
+  oils, jars, eggs in the fridge) under warm interior light. A
+  tabletop arrangement was tried for both first and read as less evocative
+  than the appliance itself — this was a deliberate choice after comparing
+  both, not an inconsistency to "fix."
+- **FLUX safety-filter gotcha**: prompting frozen *meat* directly (raw cuts,
+  "carne") gets refused with `8007: NSFW content`. Describe it as
+  sealed/wrapped/packaged product instead.
+- **The veil**: a `LinearGradient` (`expo-linear-gradient`, already a
+  dependency) from `theme.scrimStart` (denser, upper-left, under the label)
+  to `theme.scrimEnd` (more open, lower-right) — see `theme.ts`. Both are
+  scheme-aware: white-based in light, `surface`-based in dark, so a
+  dark-mode card reads as a dark card with photo texture, not a washed-out
+  photo. The photo costs the card **zero** extra layout height — it fills
+  the existing card bounds (`overflow: hidden` clips it to the 18pt radius),
+  it doesn't add a band above or below the content.
+- **Inactive chips over a photo need a background.** `Chip`'s default
+  inactive fill is `transparent` (fine over plain `surface`), which becomes
+  illegible over a photo. `LocationCard`'s preview chips pass `Chip`'s new
+  `glass` prop, filling with `theme.chipGlass` (frosted white/dark at
+  ~75%) instead. The bottom sheet's chips are untouched — no photo behind
+  them, so they keep the plain transparent fill.
 
 ## Layout pattern — bento + sheet, not accordion
 
@@ -181,8 +259,10 @@ at the same time as the restyle.
   label, `small`. Same component at two sizes: full (Mi cocina's bottom
   sheet, `padding: 6/16`) and compact (bento card preview, `padding: 4/10`,
   `font-size: 12`).
-- **`LocationCard`** — `surface` fill, `1px border`, `radius: 18`. Selected/
-  open state: `1.5px accent border` + subtle shadow lift, no fill change.
+- **`LocationCard`** — `surface` fill, `1px border`, `radius: 18`, full-bleed
+  location photo + gradient veil (see "Location photography" above),
+  `overflow: hidden` to clip the photo to the radius. Selected/open state:
+  `1.5px accent border` + subtle shadow lift, no fill change.
 - **`BottomSheet`** — generic, takes a title and children; used for the
   location chip list now, reusable later if another screen needs one. Handle
   bar `4px` tall, `2px radius`, `border` color.

@@ -15,9 +15,10 @@ import { LocationCard } from '@/components/location-card';
 import { BottomSheet } from '@/components/bottom-sheet';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { FloatingCTA } from '@/components/floating-cta';
+import { Toast } from '@/components/toast';
 import { PrimaryButton } from '@/components/primary-button';
 import { Chip } from '@/components/chip';
-import { Bookmark, Search } from '@/components/icons';
+import { Bookmark, Pencil } from '@/components/icons';
 import { Radius, Spacing, MaxContentWidth } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -52,6 +53,11 @@ export default function KitchenScreen() {
   // a persisted Item. Items need a location and this box deliberately doesn't
   // ask the user to pick one.
   const [notes, setNotes] = useState('');
+  // Confirmation toast text, shown once when the notes field loses focus
+  // (return key or tapping away both blur it) — the only feedback that the
+  // text will be sent along with the next `Buscar ideas` tap. Not a modal:
+  // principle 2 rules out anything that needs a tap to dismiss.
+  const [notesConfirmation, setNotesConfirmation] = useState<string | null>(null);
 
   useEffect(() => {
     initDb();
@@ -92,6 +98,12 @@ export default function KitchenScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
   }
 
+  function announceNotes() {
+    const trimmed = notes.trim();
+    if (!trimmed) return;
+    setNotesConfirmation(t('kitchen.notesConfirmation', { text: trimmed }));
+  }
+
   function closeSheet() {
     setOpenLocation(null);
     setAddingNew(false);
@@ -114,24 +126,26 @@ export default function KitchenScreen() {
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.header}>
           <View style={styles.titleRow}>
-            <View style={styles.titleBlock}>
-              <ThemedText type="title">{t('kitchen.title')}</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                {t('kitchen.subtitle', { count: activeCount, total: items.length })}
-              </ThemedText>
-            </View>
+            <ThemedText type="title">{t('kitchen.title')}</ThemedText>
             <Pressable style={styles.savedLink} onPress={() => router.push('/saved')}>
               <Bookmark size={14} color={theme.text} />
               <ThemedText type="link">{t('kitchen.viewSaved')}</ThemedText>
             </Pressable>
           </View>
-          <View style={[styles.notes, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Search size={15} color={theme.textSecondary} />
+          <View
+            style={[
+              styles.notes,
+              { backgroundColor: theme.surface, borderColor: notes.trim() ? theme.accent : theme.border },
+            ]}
+          >
+            <Pencil size={15} color={theme.textSecondary} />
             <TextInput
               value={notes}
               onChangeText={setNotes}
               placeholder={t('kitchen.notesPlaceholder')}
               placeholderTextColor={theme.textSecondary}
+              returnKeyType="done"
+              onBlur={announceNotes}
               style={[styles.notesInput, { color: theme.text }]}
             />
           </View>
@@ -141,6 +155,7 @@ export default function KitchenScreen() {
           {LOCATION_ORDER.map((location) => (
             <LocationCard
               key={location}
+              location={location}
               label={t(`location.${location}`)}
               items={grouped.get(location) ?? []}
               wide={location === 'cajon'}
@@ -155,6 +170,9 @@ export default function KitchenScreen() {
           label={t('kitchen.findIdeas', { count: activeCount })}
           onPress={() => router.push({ pathname: '/deck', params: { notes } })}
         />
+        {notesConfirmation && (
+          <Toast message={notesConfirmation} onDone={() => setNotesConfirmation(null)} />
+        )}
       </SafeAreaView>
 
       <BottomSheet
@@ -240,9 +258,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-  },
-  titleBlock: {
-    gap: Spacing.one,
   },
   savedLink: {
     flexDirection: 'row',

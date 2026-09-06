@@ -1,8 +1,8 @@
 export const esAR = {
   kitchen: {
     title: "Mi cocina",
-    subtitle: "{{count}} de {{total}} ingredientes",
-    notesPlaceholder: 'algo suelto que compraste, tipo "cherry y un morrón"',
+    notesPlaceholder: 'anotá algo suelto, tipo "cherry y un morrón"',
+    notesConfirmation: '"{{text}}" anotado para tu próxima búsqueda',
     findIdeas: "Buscar ideas · {{count}}",
     viewSaved: "Guardadas",
     more: "+{{count}} más",

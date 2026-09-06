@@ -17,17 +17,43 @@ function base64ToBytes(base64: string): Uint8Array {
   return bytes;
 }
 
+// One retry beyond the initial attempt. Observed in dev trace data: a
+// flux-1-schnell call fails outright under concurrent load (5 cards' worth of
+// generation firing near-simultaneously from handleSuggest's ctx.waitUntil
+// warm plus the client's own Image.prefetch), with no r2_put ever happening —
+// then a request for the exact same key moments later succeeds cleanly. The
+// client (expo-image) never retries a failed load on its own, so without this
+// the card is stuck on its placeholder forever even though the dish would
+// generate fine a moment later. Not retried on a quota-exceeded error —
+// there are no neurons left today, so retrying just adds latency for the
+// same guaranteed failure.
+const GENERATION_RETRY_DELAY_MS = 400;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function generateImageOnce(env: Env, imagePrompt: string): Promise<Uint8Array> {
+  const result = await env.AI.run("@cf/black-forest-labs/flux-1-schnell", { prompt: imagePrompt });
+  if (!result.image) {
+    throw new Error("flux-1-schnell response had no image field");
+  }
+  return base64ToBytes(result.image);
+}
+
 // Cache-miss path only — callers check R2 first (see index.ts's /img route)
 // and only reach this when nothing's cached yet. flux-1-schnell has no
 // width/height input (fixed at a 512x512 tile, matching CLAUDE.md's free-tier
 // neuron accounting) and returns base64-encoded JPEG in an `image` field —
 // verified against Cloudflare's current model docs, not assumed.
 export async function generateImage(env: Env, imagePrompt: string): Promise<Uint8Array> {
-  const result = await env.AI.run("@cf/black-forest-labs/flux-1-schnell", { prompt: imagePrompt });
-  if (!result.image) {
-    throw new Error("flux-1-schnell response had no image field");
+  try {
+    return await generateImageOnce(env, imagePrompt);
+  } catch (err) {
+    if (isQuotaExceededError(err)) throw err;
+    await delay(GENERATION_RETRY_DELAY_MS);
+    return generateImageOnce(env, imagePrompt);
   }
-  return base64ToBytes(result.image);
 }
 
 // In-flight generation dedupe, keyed by R2 key. Without this, the Worker's
