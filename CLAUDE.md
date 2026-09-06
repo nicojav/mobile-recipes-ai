@@ -92,6 +92,11 @@ npm workspaces monorepo. Everything is TypeScript.
     └── shared/           ← Zod schemas, types, seed data, constants
 ```
 
+There's a `README.md` at root and one in each of `apps/mobile`, `apps/worker`,
+and `packages/shared` — setup steps and an architecture diagram for that
+piece live there, not here. This file stays the spec (why); the READMEs are
+the map (what's where, how to run it).
+
 **`packages/shared` is the reason this is a monorepo.** The card schema is defined
 once, as Zod schemas, and imported by both the app and the Worker. The Worker uses
 it to build Gemini's response schema and to validate what comes back; the app uses
