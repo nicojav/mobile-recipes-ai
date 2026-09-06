@@ -30,6 +30,10 @@ import { CalorieBadge } from '@/components/calorie-badge';
 import { Bowl, ChevronLeft, ChevronRight } from '@/components/icons';
 import { Spacing, BottomTabInset, MaxContentWidth, Radius } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+// The post-batch "want another country's cuisine?" interstitial — see
+// CLAUDE.md's "Decisions already made" for why this is a deliberate, opt-in
+// exception to principle 4 (Argentine authenticity).
+import { CuisineInterstitial, type Country } from '@/components/cuisine-interstitial';
 
 const SWIPE_THRESHOLD = 120;
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -37,16 +41,20 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 // one so it's ready before the user runs out — see CLAUDE.md Prefetching.
 const PREFETCH_AT_REMAINING = 2;
 
-type Status = 'loading' | 'ready' | 'waiting' | 'error';
+type Status = 'loading' | 'ready' | 'waiting' | 'choosing' | 'error';
 type DeckAction = 'back' | 'next';
 type SwipeCardHandle = { dismiss: (action: DeckAction) => void };
 
 export default function DeckScreen() {
-  const { notes: notesParam } = useLocalSearchParams<{ notes?: string }>();
+  const { notes: notesParam, debugChoosing } = useLocalSearchParams<{ notes?: string; debugChoosing?: string }>();
   const notes = notesParam ?? '';
   const { t } = useTranslation();
+  // Dev-only: ?debugChoosing=1 jumps straight to the cuisine interstitial,
+  // skipping the batch fetch — lets it be reached without swiping a full
+  // 5-card batch (and without spending real image-generation quota).
+  const skipToInterstitial = __DEV__ && debugChoosing === '1';
 
-  const [status, setStatus] = useState<Status>('loading');
+  const [status, setStatus] = useState<Status>(skipToInterstitial ? 'choosing' : 'loading');
   const [cards, setCards] = useState<Card[]>([]);
   const [index, setIndex] = useState(0);
   // True from the moment the first FIRST_PAINT_COUNT cards land until the
@@ -62,6 +70,15 @@ export default function DeckScreen() {
   const pendingBatch = useRef<Card[] | null>(null);
   const isFetchingNext = useRef(false);
   const cardRef = useRef<SwipeCardHandle>(null);
+  // Bumped every time the deck enters 'choosing' — passed as CuisineInterstitial's
+  // `key` below so React always mounts a fresh instance (same reasoning as
+  // SwipeCard's own key further down: a reused instance could otherwise let
+  // its internal `shown`/`landed` state leak from one appearance to the
+  // next). Today the conditional render already unmounts it on its own; this
+  // makes that a guarantee instead of an accident of the current JSX shape.
+  // State, not a ref — it feeds a `key` prop, and a ref's `.current` can't
+  // be read during render under this project's React Compiler lint rules.
+  const [interstitialKey, setInterstitialKey] = useState(0);
 
   // Non-null while the first batch's second call (the remaining
   // CARD_COUNT - FIRST_PAINT_COUNT cards) is in flight — only ever checked
@@ -77,9 +94,12 @@ export default function DeckScreen() {
   const caughtUpDuringTail = useRef(false);
 
   const fetchBatch = useCallback(
-    async (count?: number): Promise<Card[] | null> => {
+    // notesOverride: escape hatch for the cuisine interstitial below — lets
+    // a "probá suerte" pick stuff a country hint into the same free-text
+    // `notes` channel without touching the request schema.
+    async (count?: number, notesOverride?: string): Promise<Card[] | null> => {
       try {
-        const next = await fetchSuggestions(notes, shownTitles.current, count);
+        const next = await fetchSuggestions(notesOverride ?? notes, shownTitles.current, count);
         shownTitles.current = [...shownTitles.current, ...next.map((c) => c.title)];
         // Fire all image requests concurrently as soon as the batch is
         // known — whether it's shown immediately or held as a
@@ -173,30 +193,70 @@ export default function DeckScreen() {
   }, [fetchBatch, handleTailSettled]);
 
   useEffect(() => {
+    if (skipToInterstitial) return; // see debugChoosing above
     load();
     // Only on mount — `notes` is captured once, when the user tapped "Buscar
     // ideas"; it shouldn't re-trigger a fresh batch on its own.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Batch end stops at 'choosing' instead of resolving straight through —
+  // see the cuisine interstitial below. resumeSameCuisine holds the
+  // resolution logic that used to live inline here.
+  const resumeSameCuisine = useCallback(() => {
+    if (pendingBatch.current) {
+      const next = pendingBatch.current;
+      pendingBatch.current = null;
+      setCards(next);
+      setIndex(0);
+      setStatus('ready');
+    } else if (firstBatchTail.current) {
+      // Ran out of the first FIRST_PAINT_COUNT cards before the rest of
+      // the batch landed — hold here; handleTailSettled resumes the deck
+      // once it does.
+      caughtUpDuringTail.current = true;
+      setStatus('loading');
+    } else {
+      setStatus('waiting');
+      maybePrefetch();
+    }
+  }, [maybePrefetch]);
+
+  // Discards whatever same-cuisine batch was silently prefetched (wrong
+  // cuisine now) and fetches fresh with a country hint stuffed into the
+  // existing free-text `notes` field.
+  const chooseLuckyCuisine = useCallback(
+    (country: Country) => {
+      pendingBatch.current = null;
+      setStatus('loading');
+      const hint = `${notes} Che, tirame algo de cocina ${country.name} para variar hoy.`.trim();
+      fetchBatch(CARD_COUNT, hint).then((next) => {
+        if (!next) {
+          setStatus('error');
+          return;
+        }
+        setCards(next);
+        setIndex(0);
+        setStatus('ready');
+      });
+    },
+    [fetchBatch, notes],
+  );
+
   useEffect(() => {
     if (status !== 'ready') return;
     if (index >= cards.length) {
-      if (pendingBatch.current) {
-        const next = pendingBatch.current;
-        pendingBatch.current = null;
-        setCards(next);
-        setIndex(0);
-      } else if (firstBatchTail.current) {
-        // Ran out of the first FIRST_PAINT_COUNT cards before the rest of
-        // the batch landed — hold here; handleTailSettled resumes the deck
-        // once it does.
+      if (firstBatchTail.current) {
+        // Mid the first batch's two-call split (see CLAUDE.md
+        // "Prefetching") — this isn't a real batch end, just the seam
+        // between phase 1 and phase 2 of the same 5-card batch. Don't ask;
+        // hold for handleTailSettled the same way resumeSameCuisine does.
         caughtUpDuringTail.current = true;
         setStatus('loading');
-      } else {
-        setStatus('waiting');
-        maybePrefetch();
+        return;
       }
+      setInterstitialKey((k) => k + 1);
+      setStatus('choosing');
       return;
     }
     // While the first batch's tail is still in flight, cards.length sits at
@@ -236,11 +296,32 @@ export default function DeckScreen() {
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.header}>
-          <BackButton accessibilityLabel={t('deck.back')} onPress={() => router.back()} />
+          <BackButton accessibilityLabel={t('deck.back')} />
+          {/* Dev-only shortcut: jump straight to the interstitial without
+              swiping through a full 5-card batch each time. */}
+          {__DEV__ && status === 'ready' && current && (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                setInterstitialKey((k) => k + 1);
+                setStatus('choosing');
+              }}
+              style={styles.devPreviewButton}
+            >
+              <ThemedText type="small" themeColor="textSecondary">
+                🧪 Ver interstitial
+              </ThemedText>
+            </Pressable>
+          )}
         </View>
         {__DEV__ && <DevImageQuotaBar />}
         {(status === 'loading' || status === 'waiting') && <LoadingView />}
         {status === 'error' && <ErrorView onRetry={load} />}
+        {status === 'choosing' && (
+          <View style={styles.cardArea}>
+            <CuisineInterstitial key={interstitialKey} onContinue={resumeSameCuisine} onLucky={chooseLuckyCuisine} />
+          </View>
+        )}
         {status === 'ready' && current && (
           <>
             <ThemedText type="smallBold" themeColor="textSecondary" style={styles.counter}>
@@ -482,7 +563,13 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingTop: Spacing.two,
+  },
+  devPreviewButton: {
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.one,
   },
   counter: {
     textAlign: 'center',

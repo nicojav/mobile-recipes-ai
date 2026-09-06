@@ -58,7 +58,7 @@ export default function SavedScreen() {
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.header}>
-          <BackButton accessibilityLabel={t('saved.back')} onPress={() => router.back()} />
+          <BackButton accessibilityLabel={t('saved.back')} />
         </View>
         <ThemedText type="title" style={styles.title}>
           {t('saved.title')}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Image } from 'expo-image';
 import { eq } from 'drizzle-orm';
@@ -88,7 +88,7 @@ export default function DetailScreen() {
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.header}>
-          <BackButton accessibilityLabel={t('detail.back')} onPress={() => router.back()} />
+          <BackButton accessibilityLabel={t('detail.back')} />
         </View>
         {!card ? null : (
           <>

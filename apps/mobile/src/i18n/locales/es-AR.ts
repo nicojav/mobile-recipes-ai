@@ -48,6 +48,13 @@ export const esAR = {
     retry: "Reintentar",
     previous: "Anterior",
     next: "Siguiente",
+    cuisine: {
+      headline: "Probá suerte con la próxima tanda",
+      spin: "🎲 Girar",
+      spinning: "Girando…",
+      confirm: "Sí, dale con {{country}}",
+      keepCurrent: "Seguí en {{country}}",
+    },
   },
   detail: {
     back: "Volver",

@@ -1,15 +1,28 @@
 import { Pressable, StyleSheet } from 'react-native';
+import { router } from 'expo-router';
 
 import { useTheme } from '@/hooks/use-theme';
 import { ChevronLeft } from './icons';
 
-export function BackButton({ onPress, accessibilityLabel }: { onPress: () => void; accessibilityLabel: string }) {
+// Goes back safely rather than always calling router.back() — a screen
+// entered with no navigation history above it (a deep link straight into
+// /deck, /saved, or /detail/[id]; an OS-restored session) has nothing to go
+// back to, and router.back() throws "GO_BACK was not handled by any
+// navigator" in that case. Falls back to Mi cocina, the app's one home
+// screen, so every "back" tap is a no-crash action regardless of how the
+// screen was reached.
+function goBack() {
+  if (router.canGoBack()) router.back();
+  else router.replace('/');
+}
+
+export function BackButton({ accessibilityLabel }: { accessibilityLabel: string }) {
   const theme = useTheme();
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
-      onPress={onPress}
+      onPress={goBack}
       hitSlop={8}
       style={[styles.button, { backgroundColor: theme.surface, borderColor: theme.border }]}
     >

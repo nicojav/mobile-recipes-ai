@@ -49,7 +49,10 @@ permanently — none of them are recoverable from reading the code.
    Flagging is informational (amber), never an error state.
 4. **Argentine authenticity is a requirement, not polish.** Vocabulary, dish
    repertoire, and local product availability all matter. `morrón` not `pimiento`.
-   `zapallito` not `calabacín`. Voseo throughout.
+   `zapallito` not `calabacín`. Voseo throughout. The one deliberate, opt-in
+   exception is Deck's post-batch cuisine interstitial (see Screens below) —
+   the user actively asks for a different country's cuisine for one batch;
+   it doesn't change the app's default Argentine repertoire.
 5. **The tone is a knowledgeable friend looking in your fridge.** Not a chef, not
    an app.
 
@@ -365,6 +368,20 @@ before touching any screen's styling.
    so the stamps were decorative, and the real want was to revisit a card.)
    Card shows image, title, time and effort badges, one-line description, and the
    `Te falta:` line in amber if anything is missing.
+
+   When a 5-card batch runs out, Deck stops at a **cuisine interstitial**
+   (`CuisineInterstitial`, `apps/mobile/src/components/cuisine-interstitial.tsx`)
+   before loading the next one: a slot-machine "roulette" reel defaulting to
+   `🇦🇷 Argentina`, a primary `Girar` button that spins through a fixed
+   country pool and — once landed — turns into `Sí, dale con {país}`, and an
+   equally-weighted secondary button, `Seguí en Argentina`, always visible
+   (not a text link — an earlier pass had it as one and it read as an
+   afterthought). Picking a country discards any same-cuisine batch that was
+   silently prefetched and fetches fresh with the country stuffed into the
+   existing free-text `notes` field — no API/schema change, since `notes` is
+   already passed through verbatim. See principle 4 above: this is the one
+   deliberate exception to the Argentine-only repertoire, and it's opt-in
+   per batch, not a standing preference.
 3. **Detalle** — full ingredient list with check/dash per item, numbered steps,
    `Guardar` and `La cociné`.
 4. **Guardadas** — saved recipes list.
