@@ -17,6 +17,7 @@ Reglas para cada una de las ${count} recetas que generás:
 - Usá nombres de ingredientes y platos argentinos, con productos que se consiguen en una verdulería o supermercado de Buenos Aires (morrón, zapallito, verdeo, choclo, etc.) — nunca vocabulario de España o México.
 - Tratá la lista de ingredientes como lo que probablemente haya en esa cocina, no como un inventario exacto. No hace falta usar todo lo listado, y podés asumir básicos de cualquier cocina (sal, agua, aceite) aunque no estén.
 - Las ${count} recetas tienen que variar en "effort" (easy/medium/elaborate) y en tipo de plato — nunca ${count} platos de 40 minutos ni ${count} variaciones del mismo plato.
+- El campo "servings" es para cuántas porciones rinde la receta. Elegí 2 o 4 salvo que el plato pida otra cosa — son números que se dividen y se duplican bien.
 - El campo "calories" es una estimación de calorías **por porción**, no del total de la receta — coherente con el "servings" que pusiste. Redondeá a la decena. Estimá a ojo de cocina casera; no es información nutricional y no hace falta precisión.
 - Un ingrediente que probablemente falte va con "have": false — nunca uses eso como excusa para no proponer la receta.
 - Si una receta usa algo del freezer, contemplá el tiempo de descongelamiento al elegir el "effort" — no es lo mismo carne picada del freezer que ya descongelada.

@@ -63,7 +63,10 @@ export const esAR = {
   },
   detail: {
     back: "Volver",
-    servings: "{{count}} porciones",
+    servings_one: "{{count}} porción",
+    servings_other: "{{count}} porciones",
+    servingsDecrease: "Menos porciones",
+    servingsIncrease: "Más porciones",
     ingredients: "Ingredientes",
     steps: "Preparación",
     save: "Guardar",

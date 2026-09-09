@@ -102,6 +102,15 @@ export function Plus({ size, color }: IconProps) {
   );
 }
 
+// ServingsStepper's decrease button.
+export function Minus({ size, color }: IconProps) {
+  return (
+    <Icon size={size}>
+      <Path d="M5 12h14" stroke={color} strokeWidth={STROKE_WIDTH} strokeLinecap="round" />
+    </Icon>
+  );
+}
+
 // Image-well placeholder before a recipe's real photo loads.
 export function Bowl({ size, color }: IconProps) {
   return (

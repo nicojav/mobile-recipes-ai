@@ -9,12 +9,14 @@ import type { StoredCard as Card } from '@mobile-recipes/shared';
 
 import { db, initDb } from '@db/client';
 import { savedRecipes as savedRecipesTable } from '@db/schema';
+import { scaleQuantity, scaleStepText } from '@lib/scale-quantity';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BackButton } from '@/components/back-button';
 import { PrimaryButton } from '@/components/primary-button';
 import { Badge } from '@/components/badge';
 import { CalorieBadge } from '@/components/calorie-badge';
+import { ServingsStepper } from '@/components/servings-stepper';
 import { Bowl, CheckCircle, OpenCircle } from '@/components/icons';
 import { Radius, Spacing, MaxContentWidth } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -35,9 +37,15 @@ export default function DetailScreen() {
   // implicitly saves first) writes a row.
   const [savedId, setSavedId] = useState<string | null>(null);
   const [cookedCount, setCookedCount] = useState(0);
+  // People counter — always starts at 1, never the card's own `servings`.
+  // Deliberately not persisted: every visit reopens at 1 (see CLAUDE.md
+  // principle 2 — re-tapping "+" is cheap, a second source of truth for a
+  // number the card already carries isn't worth it).
+  const [servings, setServings] = useState(1);
 
   useEffect(() => {
     initDb();
+    setServings(1);
     if (cardParam) {
       // Arrived from the deck — a suggestion the user hasn't saved yet.
       setCard(JSON.parse(cardParam) as Card);
@@ -53,6 +61,11 @@ export default function DetailScreen() {
       setCookedCount(row.cookedCount);
     }
   }, [id, cardParam]);
+
+  // Defensive: saved JSON is parsed without validation (see StoredCard), so a
+  // malformed or missing `servings` shouldn't produce an infinite factor.
+  const baseServings = card && card.servings > 0 ? card.servings : 1;
+  const servingsFactor = servings / baseServings;
 
   function handleSave() {
     if (!card || savedId) return;
@@ -103,7 +116,15 @@ export default function DetailScreen() {
               <View style={styles.badgeRow}>
                 <Badge label={t('deck.minutes', { count: card.minutes })} />
                 <Badge label={t(`effort.${card.effort}`)} />
-                <Badge label={t('detail.servings', { count: card.servings })} />
+                <ServingsStepper
+                  value={servings}
+                  min={1}
+                  max={baseServings * 2}
+                  onChange={setServings}
+                  label={t('detail.servings', { count: servings })}
+                  decreaseLabel={t('detail.servingsDecrease')}
+                  increaseLabel={t('detail.servingsIncrease')}
+                />
                 <CalorieBadge calories={card.calories} />
               </View>
 
@@ -115,8 +136,8 @@ export default function DetailScreen() {
                 <ThemedText type="micro" themeColor="textSecondary">
                   {t('detail.ingredients')}
                 </ThemedText>
-                {card.ingredients.map((ingredient) => (
-                  <View key={ingredient.name} style={styles.ingredientRow}>
+                {card.ingredients.map((ingredient, i) => (
+                  <View key={i} style={styles.ingredientRow}>
                     {ingredient.have ? (
                       <CheckCircle size={16} color={theme.text} />
                     ) : (
@@ -126,7 +147,7 @@ export default function DetailScreen() {
                       {ingredient.name}
                     </ThemedText>
                     <ThemedText type="small" themeColor="textSecondary">
-                      {ingredient.quantity}
+                      {scaleQuantity(ingredient.quantity, servingsFactor)}
                     </ThemedText>
                   </View>
                 ))}
@@ -142,7 +163,7 @@ export default function DetailScreen() {
                       {i + 1}
                     </ThemedText>
                     <ThemedText type="default" style={styles.stepText}>
-                      {step}
+                      {scaleStepText(step, servingsFactor)}
                     </ThemedText>
                   </View>
                 ))}
@@ -203,6 +224,7 @@ const styles = StyleSheet.create({
   badgeRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    alignItems: 'center',
     gap: Spacing.two,
   },
   section: {
