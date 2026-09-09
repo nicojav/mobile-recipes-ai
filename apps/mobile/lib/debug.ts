@@ -11,6 +11,7 @@ export interface ImageUsageSnapshot {
   generatedThisSession: number;
   estimatedDailyLimit: number;
   quotaExceeded: boolean;
+  devGenerationSkipped: boolean;
 }
 
 // GET /debug/image-usage needs no auth (see apps/worker/src/index.ts) — it's

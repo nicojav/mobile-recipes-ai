@@ -29,6 +29,10 @@ file committed):
 GROQ_KEY=...       # active provider's key — see src/providers/index.ts
 GEMINI_KEY=...      # only needed if you switch activeProvider to gemini
 APP_SECRET=...      # must match the mobile app's EXPO_PUBLIC_APP_SECRET
+SKIP_IMAGE_GEN=false # set to "true" to stop cache-miss FLUX calls from
+                      # burning the shared daily image quota while iterating
+                      # on anything other than image fidelity — see
+                      # plans/adr/0001-dev-image-generation-toggle.md
 ```
 
 Workers AI needs no secret — it's an account binding (`[ai]` in

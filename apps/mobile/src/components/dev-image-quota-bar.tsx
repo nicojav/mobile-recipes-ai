@@ -37,13 +37,20 @@ export function DevImageQuotaBar() {
   // something that should ever block or clutter the screen.
   if (!usage) return null;
 
-  const label = usage.quotaExceeded
-    ? `⚠️ Image quota exceeded — ${usage.generatedThisSession} generated this session`
-    : `Images this session: ${usage.generatedThisSession} (~${usage.estimatedDailyLimit}/day budget)`;
+  // Skipped takes precedence over exceeded — a deliberate dev choice, not a
+  // warning state, even if the session also happens to be over quota.
+  const label = usage.devGenerationSkipped
+    ? `🚫 Image generation skipped (dev) — ${usage.generatedThisSession} generated this session`
+    : usage.quotaExceeded
+      ? `⚠️ Image quota exceeded — ${usage.generatedThisSession} generated this session`
+      : `Images this session: ${usage.generatedThisSession} (~${usage.estimatedDailyLimit}/day budget)`;
+
+  const barStyle = usage.devGenerationSkipped ? styles.barSkipped : usage.quotaExceeded ? styles.barExceeded : styles.barNormal;
+  const textStyle = usage.devGenerationSkipped ? styles.textSkipped : usage.quotaExceeded ? styles.textExceeded : styles.textNormal;
 
   return (
-    <View style={[styles.bar, usage.quotaExceeded ? styles.barExceeded : styles.barNormal]}>
-      <ThemedText type="small" style={[styles.text, usage.quotaExceeded ? styles.textExceeded : styles.textNormal]}>
+    <View style={[styles.bar, barStyle]}>
+      <ThemedText type="small" style={[styles.text, textStyle]}>
         {label}
       </ThemedText>
     </View>
@@ -63,6 +70,9 @@ const styles = StyleSheet.create({
   barExceeded: {
     backgroundColor: '#d15c4f33',
   },
+  barSkipped: {
+    backgroundColor: '#6b728033',
+  },
   text: {
     textAlign: 'center',
   },
@@ -71,5 +81,8 @@ const styles = StyleSheet.create({
   },
   textExceeded: {
     color: '#9a3226',
+  },
+  textSkipped: {
+    color: '#4b5563',
   },
 });

@@ -542,3 +542,22 @@ Score each batch of five on:
   as `StoredCard` (`packages/shared/src/api.ts`) rather than assuming the
   field is always present, and `CalorieBadge` renders nothing when it's
   absent.
+- Image generation has a local-only dev toggle (`SKIP_IMAGE_GEN` in
+  `apps/worker/.dev.vars`, never deployed) that skips the real FLUX call on
+  an R2 cache miss — root cause was Groq's default (non-deterministic)
+  sampling giving different dish titles, hence different R2 keys, on repeat
+  test batches for the same kitchen, so quota was being spent on dev
+  iteration rather than real usage. R2 cache hits are unaffected. No new
+  placeholder UI needed: `deck.tsx`'s existing Bowl-icon placeholder already
+  renders permanently under a never-loading image. Separately, `GET
+  /img/:key` now returns `404` instead of `502` when generation was
+  deliberately skipped (dev toggle, or the existing sticky quota-exceeded
+  flag now also short-circuits further attempts instead of just informing
+  the dev usage counter) — "no image available" rather than "upstream
+  error," in every environment, not just dev. An external free image
+  provider (Pollinations.ai) was considered for real dev-time images from a
+  separate quota pool and rejected: its per-request pacing is far below the
+  5 concurrent image jobs this app fires per batch, which would mean
+  serializing them (~75s to fill a batch) — more complexity than the local
+  skip needed to solve the actual problem. See
+  `plans/adr/0001-dev-image-generation-toggle.md` for the full rationale.

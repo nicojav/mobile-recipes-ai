@@ -88,10 +88,35 @@ export interface ImageUsageSnapshot {
   generatedThisSession: number;
   estimatedDailyLimit: number;
   quotaExceeded: boolean;
+  devGenerationSkipped: boolean;
 }
 
-export function imageUsageSnapshot(): ImageUsageSnapshot {
-  return { generatedThisSession, estimatedDailyLimit: ESTIMATED_DAILY_IMAGE_LIMIT, quotaExceeded };
+// Local-dev-only escape hatch (see plans/adr/0001-dev-image-generation-toggle.md):
+// set SKIP_IMAGE_GEN=true in apps/worker/.dev.vars, never deployed, to stop
+// cache-miss FLUX calls from burning the shared daily quota while iterating
+// on anything other than image fidelity itself. Cache hits are unaffected.
+function isDevGenerationSkipped(env: Env): boolean {
+  return env.SKIP_IMAGE_GEN === "true";
+}
+
+export function imageUsageSnapshot(env: Env): ImageUsageSnapshot {
+  return {
+    generatedThisSession,
+    estimatedDailyLimit: ESTIMATED_DAILY_IMAGE_LIMIT,
+    quotaExceeded,
+    devGenerationSkipped: isDevGenerationSkipped(env),
+  };
+}
+
+// Thrown instead of calling FLUX when generation was deliberately not
+// attempted — the dev toggle above, or a known-exhausted quota (see the
+// quotaExceeded short-circuit in ensureImage below). handleImage answers
+// this with 404 ("no image available"), not 502 ("upstream error") — the
+// Worker chose not to attempt, it didn't fail unexpectedly.
+export class ImageGenerationSkipped extends Error {
+  constructor(public readonly reason: "dev-toggle" | "quota-exceeded") {
+    super(`image generation skipped (${reason})`);
+  }
 }
 
 // Matches Workers AI's own error code for this condition (confirmed against
@@ -110,6 +135,18 @@ export async function ensureImage(env: Env, key: string, imagePrompt: string): P
   const cached = await env.RECIPE_IMAGES.get(key);
   if (cached) {
     return new Uint8Array(await cached.arrayBuffer());
+  }
+
+  if (isDevGenerationSkipped(env)) {
+    throw new ImageGenerationSkipped("dev-toggle");
+  }
+  // Known-exhausted for today — skip the guaranteed-failing round trip
+  // instead of repeating it on every subsequent cache miss. Cleared on the
+  // next successful generation (see the flag's own comment above); a fresh
+  // isolate also starts with this false, so it's self-healing across
+  // recycles even though it isn't Cloudflare's authoritative quota state.
+  if (quotaExceeded) {
+    throw new ImageGenerationSkipped("quota-exceeded");
   }
 
   let pending = inFlight.get(key);
