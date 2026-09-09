@@ -153,9 +153,12 @@ iteration ships without a Play Store release.
 - Groq free tier (active provider): 14,400 req/day, 30 req/min, **8,000
   tokens/min**, no card. The token-per-minute cap is the one that actually
   bites — a 5-card suggestion response runs ~4,000–5,000 tokens, so two
-  calls inside the same minute (e.g. an initial batch plus the deck's own
-  prefetch-at-2-remaining) is enough to blow the budget, well before the
-  request-count allowances (14,400/day, 30/min) come anywhere close. Confirmed
+  calls inside the same minute is enough to blow the budget, well before the
+  request-count allowances (14,400/day, 30/min) come anywhere close. This is
+  exactly what a discarded same-cuisine prefetch used to cost on every
+  cuisine-interstitial country pick (fetch-ahead batch, then a second call for
+  the chosen country) — see Prefetching below for why that fetch-ahead was
+  removed rather than paced around. Confirmed
   repeatedly during milestone 3 harness runs and on-device testing — see
   `apps/mobile/lib/api.ts`'s retry/backoff, added specifically because this
   is a normal transient condition, not an edge case. **This is the current
@@ -381,10 +384,12 @@ before touching any screen's styling.
    country pool and — once landed — turns into `Sí, dale con {país}`, and an
    equally-weighted secondary button, `Seguí en Argentina`, always visible
    (not a text link — an earlier pass had it as one and it read as an
-   afterthought). Picking a country discards any same-cuisine batch that was
-   silently prefetched and fetches fresh with the country stuffed into the
-   existing free-text `notes` field — no API/schema change, since `notes` is
-   already passed through verbatim. See principle 4 above: this is the one
+   afterthought). Picking a country fetches fresh with the country stuffed
+   into the existing free-text `notes` field — no API/schema change, since
+   `notes` is already passed through verbatim. There's nothing to discard
+   first: as of the Prefetching section below, nothing is prefetched ahead of
+   the interstitial, so every batch boundary (same cuisine or a new one)
+   costs exactly one provider call. See principle 4 above: this is the one
    deliberate exception to the Argentine-only repertoire, and it's opt-in
    per batch, not a standing preference.
 3. **Detalle** — full ingredient list with check/dash per item, numbered steps,
@@ -399,15 +404,33 @@ before touching any screen's styling.
 
 ## Prefetching
 
-Prefetch-ahead batches are one request for five cards, never five requests.
-When the user has 2 cards left, quietly fetch the next batch with `exclude`
-populated. 1,000 free daily requests becomes 5,000 cards.
+A batch is one request for five cards, never five requests. There is
+deliberately no fetch-ahead: the deck now always stops at the cuisine
+interstitial when a batch runs out (see Screens above), so the next batch
+isn't requested until the user picks how to continue — same cuisine or a
+different one. An earlier draft prefetched the next same-cuisine batch
+quietly at 2-cards-remaining; that batch was silently discarded whenever the
+user picked a country instead, meaning a country pick paid for two full
+5-card provider calls back to back — enough to blow Groq's 8,000 tokens/min
+cap (see Free tier ceilings) and surface as a fast 502 on-device. Reverted
+once the interstitial made every fetch-ahead a bet against a choice the user
+hadn't made yet: there's no boundary left where "the next batch" is knowable
+in advance.
 
-**The first batch of a session is the one exception**: it's split into two
-calls (2 cards, then 3), so the deck can render as soon as the first two
-exist instead of waiting on all five. This exists only because Groq can't
+**Every batch is a two-call split**, not just the first one of a session: 2
+cards, then the remaining 3, so the deck can render before all five exist
+instead of waiting on the whole batch. This exists only because Groq can't
 stream structured output — see the entry under "Decisions already made" for
 why, and for when to undo it.
+
+This used to be a first-batch-only exception. Widened to every batch once the
+interstitial's provider call (a fresh Argentine batch or a country pick) was
+also making the user wait on all 5 cards at once — measured on-device at
+**~8.3s** for a full 5-card gpt-oss-120b response (~4,500 output tokens) vs.
+**~3.5s** for the first 2. The first card now appears in ~3.5s on every batch
+boundary, not just session start, with cards 3–5 landing in the background
+while the user reads card 1. The country hint is threaded through both calls
+of the split, so phase 2 lands in the same cuisine as phase 1.
 
 ## Build order
 
@@ -477,14 +500,14 @@ Score each batch of five on:
   images) both hit real platform bugs blocking every request on first use.
   Groq is active now, but the model/provider is expected to change again —
   the interface is the permanent decision, not any one provider.
-- The first suggestion batch is split into two calls (2 cards, then 3)
-  instead of streaming one call. **This is a workaround for a Groq
-  limitation, not the design we'd choose.** Groq does not support
-  `stream: true` together with `response_format: json_schema` — "Streaming
-  and tool use are not currently supported with Structured Outputs" — and
-  dropping to `json_object` mode to get streaming would lose constrained
-  decoding, which `providers/groq.ts` already records as necessary for this
-  schema to survive (a weaker model garbled it even with strict mode on).
+- Every suggestion batch is split into two calls (2 cards, then 3) instead of
+  streaming one call. **This is a workaround for a Groq limitation, not the
+  design we'd choose.** Groq does not support `stream: true` together with
+  `response_format: json_schema` — "Streaming and tool use are not currently
+  supported with Structured Outputs" — and dropping to `json_object` mode to
+  get streaming would lose constrained decoding, which `providers/groq.ts`
+  already records as necessary for this schema to survive (a weaker model
+  garbled it even with strict mode on).
   **If the active provider changes, check whether it streams structured
   output. If it does, delete the split and stream one call instead** — that
   puts the first card up sooner, costs ~9% fewer tokens, and restores the
@@ -492,6 +515,15 @@ Score each batch of five on:
   across the batch. The client is not a blocker: `expo/fetch` already
   supports streaming response bodies (`response.body` is a real
   `ReadableStream`).
+  This was a first-batch-only exception originally; widened to every batch
+  once it became clear the cost applied identically to the cuisine
+  interstitial's own batches (see Prefetching above) — a country pick was
+  making the user wait ~8.3s on a full 5-card response with nothing on
+  screen, the same cost the split already existed to avoid at session start.
+  The effort-variety cost this entry already names — a split batch can't
+  balance effort across all five as coherently as one "dame 5 variadas" call
+  — now applies to every batch, not just the first; that's the price being
+  paid for the latency win everywhere, not just at session start.
 - Cards carry one calorie number: an estimate **per serving**, not per
   recipe — this is the anticipated use of `"v": 1` (see API contract), not a
   scope violation of "no nutrition data." Shown as a gradient chip

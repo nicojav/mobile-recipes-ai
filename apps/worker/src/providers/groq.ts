@@ -9,8 +9,8 @@ import { ProviderError } from "./types";
 // it hoisted `imagePrompt` to a single top-level field instead of nesting it
 // per card, despite strict mode. 120b handles the same schema correctly.
 //
-// Also the reason the first suggestion batch is split into two calls instead
-// of one streamed call: Groq does not support streaming together with
+// Also the reason every suggestion batch is split into two calls instead of
+// one streamed call: Groq does not support streaming together with
 // response_format: json_schema ("Streaming and tool use are not currently
 // supported with Structured Outputs"). See CLAUDE.md "Decisions already
 // made" for the full note and when to undo the split.
@@ -20,8 +20,8 @@ const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 // OpenAI-style strict mode: same plain JSON Schema Workers AI takes, just
 // wrapped in {name, strict, schema} — z.toJSONSchema's default output
 // already sets additionalProperties: false and lists every key as required,
-// which strict mode requires. Memoized per count since the first batch of a
-// session asks for fewer than CARD_COUNT — see the note above.
+// which strict mode requires. Memoized per count since every batch's first
+// call asks for fewer than CARD_COUNT — see the note above.
 const jsonSchemaCache = new Map<number, Record<string, unknown>>();
 function cardsJsonSchemaFor(count: number): Record<string, unknown> {
   let schema = jsonSchemaCache.get(count);
@@ -69,7 +69,7 @@ class GroqProvider extends BaseCardProvider {
     });
 
     if (!res.ok) {
-      throw new ProviderError(this.name, "request failed", await res.text());
+      throw new ProviderError(this.name, "request failed", await res.text(), res.status, res.headers.get("retry-after"));
     }
     return res.json();
   }

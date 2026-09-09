@@ -65,7 +65,7 @@ function toGeminiSchema(node: JSONSchemaNode): JSONSchemaNode {
   };
 }
 
-// Memoized per count since the first batch of a session asks for fewer than
+// Memoized per count since every batch's first call asks for fewer than
 // CARD_COUNT — see the note on cardsPayloadFor in providers/schema.ts.
 const geminiSchemaCache = new Map<number, JSONSchemaNode>();
 function geminiResponseSchemaFor(count: number): JSONSchemaNode {
@@ -99,7 +99,7 @@ class GeminiProvider extends BaseCardProvider {
     });
 
     if (!res.ok) {
-      throw new ProviderError(this.name, "request failed", await res.text());
+      throw new ProviderError(this.name, "request failed", await res.text(), res.status, res.headers.get("retry-after"));
     }
     return res.json();
   }

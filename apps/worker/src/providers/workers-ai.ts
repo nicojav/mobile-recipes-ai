@@ -13,7 +13,7 @@ const MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 // Workers AI's response_format.json_schema takes plain JSON Schema directly
 // (unlike Gemini's uppercase-typed proto) — z.toJSONSchema's default output
 // works as-is, just drop $schema since the docs' own examples omit it.
-// Memoized per count since the first batch of a session asks for fewer than
+// Memoized per count since every batch's first call asks for fewer than
 // CARD_COUNT — see the same note in providers/groq.ts.
 const jsonSchemaCache = new Map<number, Record<string, unknown>>();
 function responseSchemaFor(count: number): Record<string, unknown> {

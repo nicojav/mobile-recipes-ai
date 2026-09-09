@@ -1,6 +1,6 @@
 import { SuggestRequest } from "@mobile-recipes/shared";
 import { activeProvider, ProviderError } from "./providers";
-import { ensureImage, imageKeyFor, imageUsageSnapshot } from "./images";
+import { ensureImage, ImageGenerationSkipped, imageKeyFor, imageUsageSnapshot } from "./images";
 
 export default {
   async fetch(request, env, ctx): Promise<Response> {
@@ -17,7 +17,7 @@ export default {
     // a real production environment, which — per CLAUDE.md's Build order —
     // it deliberately hasn't yet.
     if (request.method === "GET" && url.pathname === "/debug/image-usage") {
-      return Response.json(imageUsageSnapshot());
+      return Response.json(imageUsageSnapshot(env));
     }
     return jsonError(404, "not found");
   },
@@ -74,6 +74,15 @@ async function handleSuggest(request: Request, env: Env, ctx: ExecutionContext):
     return Response.json({ v: 1, cards: cardsWithImages });
   } catch (err) {
     if (err instanceof ProviderError) {
+      // Logged unconditionally — without this, wrangler's console only shows
+      // the bare status line, and a rate limit vs. a real upstream failure
+      // are indistinguishable from the outside. See CLAUDE.md's Free tier
+      // ceilings note on Groq's 8,000 tokens/min cap being the likely cause
+      // of a fast 429 here.
+      console.error(`[${err.provider}] status=${err.status ?? "?"} retryAfter=${err.retryAfter ?? "none"}`, err.detail);
+      if (err.status === 429) {
+        return jsonError(429, `${err.provider}: rate limited`, err.detail, err.retryAfter ? { "retry-after": err.retryAfter } : undefined);
+      }
       return jsonError(502, `${err.provider}: ${err.message}`, err.detail);
     }
     throw err;
@@ -101,6 +110,13 @@ async function handleImage(request: Request, env: Env, key: string): Promise<Res
   try {
     bytes = await ensureImage(env, key, prompt);
   } catch (err) {
+    if (err instanceof ImageGenerationSkipped) {
+      // Deliberately not attempted (dev toggle or known-exhausted quota),
+      // not an upstream failure — see plans/adr/0001-dev-image-generation-toggle.md.
+      // The app's Bowl-icon placeholder already handles a missing image
+      // permanently, so the card still works, just without a picture.
+      return jsonError(404, "image not available", err.reason);
+    }
     return jsonError(502, "image generation failed", err instanceof Error ? err.message : err);
   }
 
@@ -124,6 +140,6 @@ async function hasValidAppSecret(request: Request, env: Env): Promise<boolean> {
   return crypto.subtle.timingSafeEqual(providedBytes, expectedBytes);
 }
 
-function jsonError(status: number, error: string, detail?: unknown): Response {
-  return Response.json({ error, ...(detail !== undefined ? { detail } : {}) }, { status });
+function jsonError(status: number, error: string, detail?: unknown, headers?: Record<string, string>): Response {
+  return Response.json({ error, ...(detail !== undefined ? { detail } : {}) }, { status, headers });
 }

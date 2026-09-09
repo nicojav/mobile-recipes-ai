@@ -37,37 +37,34 @@ import { CuisineInterstitial, type Country } from '@/components/cuisine-intersti
 
 const SWIPE_THRESHOLD = 120;
 const SCREEN_WIDTH = Dimensions.get('window').width;
-// Once this many cards remain in the current batch, quietly fetch the next
-// one so it's ready before the user runs out — see CLAUDE.md Prefetching.
-const PREFETCH_AT_REMAINING = 2;
 
-type Status = 'loading' | 'ready' | 'waiting' | 'choosing' | 'error';
+type Status = 'loading' | 'ready' | 'choosing' | 'error';
 type DeckAction = 'back' | 'next';
 type SwipeCardHandle = { dismiss: (action: DeckAction) => void };
 
 export default function DeckScreen() {
-  const { notes: notesParam, debugChoosing } = useLocalSearchParams<{ notes?: string; debugChoosing?: string }>();
+  const { notes: notesParam } = useLocalSearchParams<{ notes?: string }>();
   const notes = notesParam ?? '';
   const { t } = useTranslation();
-  // Dev-only: ?debugChoosing=1 jumps straight to the cuisine interstitial,
-  // skipping the batch fetch — lets it be reached without swiping a full
-  // 5-card batch (and without spending real image-generation quota).
-  const skipToInterstitial = __DEV__ && debugChoosing === '1';
 
-  const [status, setStatus] = useState<Status>(skipToInterstitial ? 'choosing' : 'loading');
+  const [status, setStatus] = useState<Status>('loading');
   const [cards, setCards] = useState<Card[]>([]);
   const [index, setIndex] = useState(0);
-  // True from the moment the first FIRST_PAINT_COUNT cards land until the
-  // rest of that same batch arrives (or fails) — see firstBatchTail below.
-  // Only affects the counter: while true, show the full CARD_COUNT as the
-  // total instead of the still-partial cards.length, so "1 de 5" doesn't
+  // True from the moment the first FIRST_PAINT_COUNT cards of a batch land
+  // until the rest of that same batch arrives (or fails) — see batchTail
+  // below. Only affects the counter: while true, show the full CARD_COUNT as
+  // the total instead of the still-partial cards.length, so "1 de 5" doesn't
   // briefly read "1 de 2" and then jump.
-  const [awaitingFirstBatchTail, setAwaitingFirstBatchTail] = useState(false);
+  const [awaitingBatchTail, setAwaitingBatchTail] = useState(false);
+  // True while a request is being retried after a rate-limit response (see
+  // fetchBatch's onThrottled below) — lets LoadingView swap its cycling
+  // lines for an honest "estamos al límite" message instead of leaving the
+  // user staring at ordinary loading copy for tens of seconds.
+  const [throttled, setThrottled] = useState(false);
 
   // Titles shown so far this session, sent as `exclude` on every follow-up
   // batch so a batch-2 request never repeats a batch-1 dish.
   const shownTitles = useRef<string[]>([]);
-  const pendingBatch = useRef<Card[] | null>(null);
   const isFetchingNext = useRef(false);
   const cardRef = useRef<SwipeCardHandle>(null);
   // Bumped every time the deck enters 'choosing' — passed as CuisineInterstitial's
@@ -80,18 +77,25 @@ export default function DeckScreen() {
   // be read during render under this project's React Compiler lint rules.
   const [interstitialKey, setInterstitialKey] = useState(0);
 
-  // Non-null while the first batch's second call (the remaining
-  // CARD_COUNT - FIRST_PAINT_COUNT cards) is in flight — only ever checked
-  // for truthiness, never awaited, so it's typed as the settled `void` that
+  // Non-null while a batch's second call (the remaining CARD_COUNT -
+  // FIRST_PAINT_COUNT cards) is in flight — only ever checked for
+  // truthiness, never awaited, so it's typed as the settled `void` that
   // handleTailSettled itself produces. This is a Groq streaming workaround —
-  // see CLAUDE.md "Decisions already made" for why the first batch is split
-  // into two calls instead of one, and delete this along with the rest of
-  // the split if that ever stops being true.
-  const firstBatchTail = useRef<Promise<void> | null>(null);
+  // see CLAUDE.md "Decisions already made" for why every batch is split into
+  // two calls instead of one, and delete this along with the rest of the
+  // split if that ever stops being true.
+  const batchTail = useRef<Promise<void> | null>(null);
   // Set if the user swipes past the FIRST_PAINT_COUNT cards before the tail
   // above lands — tells handleTailSettled it needs to resume the deck
   // itself, not just append quietly in the background.
   const caughtUpDuringTail = useRef(false);
+  // The notes override (country hint) the in-flight/most recent batch was
+  // fetched with, if any. Only read by retry() below — resumeSameCuisine and
+  // chooseLuckyCuisine already know explicitly which override they want
+  // (none, or a fresh country pick); a retry after a failure has no such
+  // context of its own, and without this it would silently drop a country
+  // batch back to the Argentine default.
+  const activeNotesOverride = useRef<string | undefined>(undefined);
 
   const fetchBatch = useCallback(
     // notesOverride: escape hatch for the cuisine interstitial below — lets
@@ -99,175 +103,139 @@ export default function DeckScreen() {
     // `notes` channel without touching the request schema.
     async (count?: number, notesOverride?: string): Promise<Card[] | null> => {
       try {
-        const next = await fetchSuggestions(notesOverride ?? notes, shownTitles.current, count);
+        const next = await fetchSuggestions(notesOverride ?? notes, shownTitles.current, count, () => setThrottled(true));
+        setThrottled(false);
         shownTitles.current = [...shownTitles.current, ...next.map((c) => c.title)];
         // Fire all image requests concurrently as soon as the batch is
-        // known — whether it's shown immediately or held as a
-        // prefetched-ahead batch, the Worker should already be
-        // generating/caching by the time any card needs its image. Never
-        // awaited: a failed prefetch just means the <Image> in SwipeCard
-        // loads it lazily instead — see CLAUDE.md's Image pipeline section
-        // ("never block the card on the image").
+        // known, so the Worker is already generating/caching by the time any
+        // card needs its image. Never awaited: a failed prefetch just means
+        // the <Image> in SwipeCard loads it lazily instead — see CLAUDE.md's
+        // Image pipeline section ("never block the card on the image").
         Image.prefetch(next.map((card) => card.imageUrl)).catch(() => {});
         return next;
       } catch {
+        setThrottled(false);
         return null;
       }
     },
     [notes],
   );
 
-  const maybePrefetch = useCallback(() => {
-    if (isFetchingNext.current || pendingBatch.current) return;
-    isFetchingNext.current = true;
-    // Prefetch-ahead batches are always a full CARD_COUNT — only the first
-    // batch of a session is split. See CLAUDE.md "Prefetching".
-    fetchBatch().then((next) => {
-      isFetchingNext.current = false;
-      setStatus((current) => {
-        if (!next) {
-          // A background prefetch-ahead failure (still `ready`, cards left
-          // to show) stays silent — advance() retries once the batch runs
-          // out. But if the user is already on `waiting` (out of cards,
-          // this fetch was their only way forward), silently doing nothing
-          // here left them stuck on the loading spinner forever — surface
-          // the error state instead so the existing retry button can fire.
-          return current === 'waiting' ? 'error' : current;
+  // Runs once phase 2 of a batch (the remaining CARD_COUNT -
+  // FIRST_PAINT_COUNT cards) settles, success or failure.
+  const handleTailSettled = useCallback((rest: Card[] | null) => {
+    batchTail.current = null;
+    setAwaitingBatchTail(false);
+    const caughtUp = caughtUpDuringTail.current;
+    caughtUpDuringTail.current = false;
+
+    if (rest && rest.length > 0) {
+      setCards((prev) => [...prev, ...rest]);
+    }
+    // If the user hadn't reached the end of the first FIRST_PAINT_COUNT
+    // cards yet, there's nothing to resume — the effect below will pick
+    // the appended cards up naturally once they get there.
+    if (!caughtUp) return;
+
+    if (rest && rest.length > 0) {
+      setStatus('ready');
+    } else {
+      // The batch ends early at FIRST_PAINT_COUNT cards — same recovery as
+      // any other exhausted batch: let the user pick how to continue via
+      // the interstitial. Starting a fresh batch straight from here (as an
+      // earlier version did) would silently drop this batch's own
+      // notesOverride — e.g. reverting a country pick back to Argentine mid-
+      // cuisine.
+      setInterstitialKey((k) => k + 1);
+      setStatus('choosing');
+    }
+  }, []);
+
+  // The single way any batch begins — the initial load, "Seguí en
+  // Argentina", and a country pick all call this. Always fetches
+  // FIRST_PAINT_COUNT cards first so the deck can render before the rest of
+  // the batch exists, then immediately fetches the remaining CARD_COUNT -
+  // FIRST_PAINT_COUNT in the background — see CLAUDE.md "Decisions already
+  // made" for why this split exists (Groq can't stream structured output)
+  // and delete it in favor of one streamed call if that ever changes.
+  // notesOverride is captured by both calls' closures, so phase 2 of a
+  // country batch stays in the same cuisine as phase 1 automatically.
+  const startBatch = useCallback(
+    (notesOverride?: string) => {
+      if (isFetchingNext.current || batchTail.current) return;
+      activeNotesOverride.current = notesOverride;
+      isFetchingNext.current = true;
+      setStatus('loading');
+      fetchBatch(FIRST_PAINT_COUNT, notesOverride).then((first) => {
+        isFetchingNext.current = false;
+        if (!first) {
+          setStatus('error');
+          return;
         }
-        if (current === 'waiting') {
-          setCards(next);
-          setIndex(0);
-          return 'ready';
-        }
-        pendingBatch.current = next;
-        return current;
-      });
-    });
-  }, [fetchBatch]);
-
-  // Runs once phase 2 of the first batch (the remaining
-  // CARD_COUNT - FIRST_PAINT_COUNT cards) settles, success or failure.
-  const handleTailSettled = useCallback(
-    (rest: Card[] | null) => {
-      firstBatchTail.current = null;
-      setAwaitingFirstBatchTail(false);
-      const caughtUp = caughtUpDuringTail.current;
-      caughtUpDuringTail.current = false;
-
-      if (rest && rest.length > 0) {
-        setCards((prev) => [...prev, ...rest]);
-      }
-      // If the user hadn't reached the end of the first FIRST_PAINT_COUNT
-      // cards yet, there's nothing to resume — the effect below will pick
-      // the appended cards up naturally once they get there.
-      if (!caughtUp) return;
-
-      if (rest && rest.length > 0) {
+        setCards(first);
+        setIndex(0);
         setStatus('ready');
-      } else {
-        // Non-fatal: the deck stays at FIRST_PAINT_COUNT cards for this
-        // batch. Same recovery as any other exhausted batch.
-        setStatus('waiting');
-        maybePrefetch();
-      }
+        setAwaitingBatchTail(true);
+        batchTail.current = fetchBatch(CARD_COUNT - FIRST_PAINT_COUNT, notesOverride).then(handleTailSettled);
+      });
     },
-    [maybePrefetch],
+    [fetchBatch, handleTailSettled],
   );
 
-  const load = useCallback(() => {
-    setStatus('loading');
-    fetchBatch(FIRST_PAINT_COUNT).then((first) => {
-      if (!first) {
-        setStatus('error');
-        return;
-      }
-      setCards(first);
-      setIndex(0);
-      setStatus('ready');
-      setAwaitingFirstBatchTail(true);
-      // Immediately go get the rest of the batch in the background — see
-      // CLAUDE.md "Decisions already made" for why this is split instead of
-      // one call for all of CARD_COUNT.
-      firstBatchTail.current = fetchBatch(CARD_COUNT - FIRST_PAINT_COUNT).then(handleTailSettled);
-    });
-  }, [fetchBatch, handleTailSettled]);
-
   useEffect(() => {
-    if (skipToInterstitial) return; // see debugChoosing above
-    load();
+    startBatch();
     // Only on mount — `notes` is captured once, when the user tapped "Buscar
     // ideas"; it shouldn't re-trigger a fresh batch on its own.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Retries whatever batch just failed, in the same cuisine it failed in —
+  // see activeNotesOverride's own comment above for why that ref exists.
+  const retry = useCallback(() => startBatch(activeNotesOverride.current), [startBatch]);
+
   // Batch end stops at 'choosing' instead of resolving straight through —
-  // see the cuisine interstitial below. resumeSameCuisine holds the
-  // resolution logic that used to live inline here.
+  // see the cuisine interstitial below. "Seguí en Argentina" always means
+  // the plain Argentine default (CuisineInterstitial's CURRENT), regardless
+  // of what cuisine the batch that just ended was in — so this never reuses
+  // activeNotesOverride.
   const resumeSameCuisine = useCallback(() => {
-    if (pendingBatch.current) {
-      const next = pendingBatch.current;
-      pendingBatch.current = null;
-      setCards(next);
-      setIndex(0);
-      setStatus('ready');
-    } else if (firstBatchTail.current) {
+    if (batchTail.current) {
       // Ran out of the first FIRST_PAINT_COUNT cards before the rest of
       // the batch landed — hold here; handleTailSettled resumes the deck
       // once it does.
       caughtUpDuringTail.current = true;
       setStatus('loading');
     } else {
-      setStatus('waiting');
-      maybePrefetch();
+      startBatch();
     }
-  }, [maybePrefetch]);
+  }, [startBatch]);
 
-  // Discards whatever same-cuisine batch was silently prefetched (wrong
-  // cuisine now) and fetches fresh with a country hint stuffed into the
-  // existing free-text `notes` field.
+  // Fetches fresh with a country hint stuffed into the existing free-text
+  // `notes` field.
   const chooseLuckyCuisine = useCallback(
     (country: Country) => {
-      pendingBatch.current = null;
-      setStatus('loading');
       const hint = `${notes} Che, tirame algo de cocina ${country.name} para variar hoy.`.trim();
-      fetchBatch(CARD_COUNT, hint).then((next) => {
-        if (!next) {
-          setStatus('error');
-          return;
-        }
-        setCards(next);
-        setIndex(0);
-        setStatus('ready');
-      });
+      startBatch(hint);
     },
-    [fetchBatch, notes],
+    [notes, startBatch],
   );
 
   useEffect(() => {
     if (status !== 'ready') return;
     if (index >= cards.length) {
-      if (firstBatchTail.current) {
-        // Mid the first batch's two-call split (see CLAUDE.md
-        // "Prefetching") — this isn't a real batch end, just the seam
-        // between phase 1 and phase 2 of the same 5-card batch. Don't ask;
-        // hold for handleTailSettled the same way resumeSameCuisine does.
+      if (batchTail.current) {
+        // Mid the batch's two-call split (see CLAUDE.md "Prefetching") —
+        // this isn't a real batch end, just the seam between phase 1 and
+        // phase 2 of the same 5-card batch. Don't ask; hold for
+        // handleTailSettled the same way resumeSameCuisine does.
         caughtUpDuringTail.current = true;
         setStatus('loading');
         return;
       }
       setInterstitialKey((k) => k + 1);
       setStatus('choosing');
-      return;
     }
-    // While the first batch's tail is still in flight, cards.length sits at
-    // FIRST_PAINT_COUNT, which happens to equal PREFETCH_AT_REMAINING —
-    // without this guard the check below would misfire and kick off a
-    // redundant third call on top of the two the first batch already makes.
-    if (firstBatchTail.current) return;
-    if (cards.length - index === PREFETCH_AT_REMAINING) {
-      maybePrefetch();
-    }
-  }, [index, cards, status, maybePrefetch]);
+  }, [index, cards, status]);
 
   const advance = useCallback(() => setIndex((i) => i + 1), []);
 
@@ -297,26 +265,25 @@ export default function DeckScreen() {
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.header}>
           <BackButton accessibilityLabel={t('deck.back')} />
-          {/* Dev-only shortcut: jump straight to the interstitial without
-              swiping through a full 5-card batch each time. */}
-          {__DEV__ && status === 'ready' && current && (
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => {
-                setInterstitialKey((k) => k + 1);
-                setStatus('choosing');
-              }}
-              style={styles.devPreviewButton}
-            >
-              <ThemedText type="small" themeColor="textSecondary">
-                🧪 Ver interstitial
-              </ThemedText>
-            </Pressable>
-          )}
         </View>
         {__DEV__ && <DevImageQuotaBar />}
-        {(status === 'loading' || status === 'waiting') && <LoadingView />}
-        {status === 'error' && <ErrorView onRetry={load} />}
+        {/* Dev-only visibility into the background batch-tail fetch (see
+            startBatch/handleTailSettled) — with no indicator here, phase 2
+            fetching quietly while status stays 'ready' looks indistinguishable
+            from not happening at all, including a silent rate-limit retry
+            that only ever surfaced once the user swiped far enough to block
+            on it via LoadingView below. */}
+        {__DEV__ && awaitingBatchTail && (
+          <View style={styles.tailDebugBar}>
+            <ThemedText type="small" themeColor="textSecondary" style={styles.tailDebugText}>
+              {throttled
+                ? '🧪 resto de la tanda: límite de Groq alcanzado, reintentando…'
+                : '🧪 cargando el resto de la tanda en segundo plano…'}
+            </ThemedText>
+          </View>
+        )}
+        {status === 'loading' && <LoadingView throttled={throttled} />}
+        {status === 'error' && <ErrorView onRetry={retry} />}
         {status === 'choosing' && (
           <View style={styles.cardArea}>
             <CuisineInterstitial key={interstitialKey} onContinue={resumeSameCuisine} onLucky={chooseLuckyCuisine} />
@@ -325,7 +292,7 @@ export default function DeckScreen() {
         {status === 'ready' && current && (
           <>
             <ThemedText type="smallBold" themeColor="textSecondary" style={styles.counter}>
-              {t('deck.counter', { current: index + 1, total: awaitingFirstBatchTail ? CARD_COUNT : cards.length })}
+              {t('deck.counter', { current: index + 1, total: awaitingBatchTail ? CARD_COUNT : cards.length })}
             </ThemedText>
             <View style={styles.cardArea}>
               <SwipeCard
@@ -498,7 +465,7 @@ const SwipeCard = forwardRef<
 // The 2-4s wait for a suggestion batch is the moment most likely to make the
 // app feel cheap (see CLAUDE.md "Not yet designed") — a plain spinner isn't
 // enough, so this pulses a glyph and cycles a few voseo lines instead.
-function LoadingView() {
+function LoadingView({ throttled }: { throttled?: boolean }) {
   const { t } = useTranslation();
   const theme = useTheme();
   const pulse = useSharedValue(0);
@@ -532,7 +499,7 @@ function LoadingView() {
         <Bowl size={56} color={theme.textSecondary} />
       </Animated.View>
       <ThemedText type="default" themeColor="textSecondary" style={styles.loadingLine}>
-        {lines[lineIndex]}
+        {throttled ? t('deck.throttled') : lines[lineIndex]}
       </ThemedText>
     </View>
   );
@@ -567,9 +534,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingTop: Spacing.two,
   },
-  devPreviewButton: {
-    paddingHorizontal: Spacing.two,
+  tailDebugBar: {
     paddingVertical: Spacing.one,
+    paddingHorizontal: Spacing.two,
+    borderRadius: Spacing.one,
+    marginBottom: Spacing.two,
+    backgroundColor: '#6b728033',
+  },
+  tailDebugText: {
+    textAlign: 'center',
+    color: '#4b5563',
   },
   counter: {
     textAlign: 'center',

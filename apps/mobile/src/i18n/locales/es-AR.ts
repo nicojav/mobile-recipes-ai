@@ -45,6 +45,11 @@ export const esAR = {
       "Ya casi…",
     ],
     error: "No se pudo conectar. Probá de nuevo.",
+    // Shown instead of the cycling loadingLines while a request is being
+    // retried after a rate-limit response (see LoadingView's `throttled`
+    // prop) — honest about the wait instead of leaving the generic loading
+    // copy running for what can be tens of seconds.
+    throttled: "Pará un toque, estamos al límite de pedidos…",
     retry: "Reintentar",
     previous: "Anterior",
     next: "Siguiente",

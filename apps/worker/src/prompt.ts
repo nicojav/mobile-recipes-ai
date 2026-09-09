@@ -1,9 +1,9 @@
 import { CARD_COUNT, type SuggestRequest } from "@mobile-recipes/shared";
 
 // count defaults to CARD_COUNT (a full batch); the only caller that passes
-// anything else is the first-batch split described in CLAUDE.md's
-// "Decisions already made" (a Groq streaming workaround) — every other
-// caller (prefetch-ahead batches) asks for CARD_COUNT same as before.
+// anything else is the client's two-call batch split described in
+// CLAUDE.md's "Decisions already made" (a Groq streaming workaround) — every
+// batch is split this way now, not just the first one of a session.
 //
 // Static otherwise: no per-request data belongs in the system prompt (see
 // CLAUDE.md — "Why the Worker exists" / prompt injection concern with

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-// A full batch is 5 cards. The first batch of a session is split into
+// A full batch is 5 cards. Every batch is split into
 // FIRST_PAINT_COUNT + (CARD_COUNT - FIRST_PAINT_COUNT) — a Groq workaround,
 // not the design of choice. See CLAUDE.md "Decisions already made" for why,
 // and for when to delete the split.
@@ -23,9 +23,10 @@ export const SuggestRequest = z.object({
   notes: z.string().optional(),
   exclude: z.array(z.string()).optional(),
   // How many cards to generate this call. Optional and defaults to
-  // CARD_COUNT server-side — only the client's two-phase first load ever
-  // sends anything else. Clamped again in the Worker; never trust a client
-  // number without re-checking it server-side.
+  // CARD_COUNT server-side — the client's two-phase batch split (see
+  // FIRST_PAINT_COUNT above) is what sends anything else. Clamped again in
+  // the Worker; never trust a client number without re-checking it
+  // server-side.
   count: z.number().int().min(1).max(CARD_COUNT).optional(),
 });
 export type SuggestRequest = z.infer<typeof SuggestRequest>;
@@ -81,7 +82,7 @@ export type StoredCard = Omit<CardWithImage, "calories"> & { calories?: number }
 export const SuggestResponse = z.object({
   v: z.literal(1),
   // Not .length(CARD_COUNT) — a request can ask for fewer (see `count` on
-  // SuggestRequest, and the first-batch split under Prefetching in
+  // SuggestRequest, and the two-call batch split under Prefetching in
   // CLAUDE.md).
   cards: z.array(CardWithImage).min(1).max(CARD_COUNT),
 });

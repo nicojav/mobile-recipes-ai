@@ -1,6 +1,6 @@
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { SuggestRequest, SuggestResponse } from "@mobile-recipes/shared";
+import { SuggestRequest, SuggestResponse, parseRetryDelayMs } from "@mobile-recipes/shared";
 
 // Reused every run so consecutive output dirs can be diffed side by side
 // across prompt edits — see plans/README.md and plans/03-quality-and-images.md.
@@ -21,7 +21,6 @@ interface ScenarioResult {
 }
 
 const MAX_RETRIES = 5;
-const DEFAULT_RETRY_DELAY_MS = 15_000;
 const NETWORK_ERROR_RETRY_DELAY_MS = 10_000;
 // fetch() has no default timeout — a stalled connection (seen in practice
 // against wrangler dev) would otherwise hang the whole run indefinitely with
@@ -30,19 +29,6 @@ const REQUEST_TIMEOUT_MS = 45_000;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-// Groq's free tier (30 req/min, but also 8,000 tokens/min — see CLAUDE.md →
-// Free tier ceilings) is the binding constraint: a single ~5k-token card
-// batch can eat most of a minute's budget, so back-to-back scenarios hit
-// 429/502 rate-limit responses even well under the request-count cap. Rather
-// than pace every request by a fixed delay (slow even when there's budget),
-// retry only on a rate-limit response and honor the provider's own
-// "try again in Ns" hint when present.
-function retryDelayMs(errorBody: string): number {
-  const match = errorBody.match(/try again in ([\d.]+)s/i);
-  if (!match) return DEFAULT_RETRY_DELAY_MS;
-  return Math.ceil(parseFloat(match[1]) * 1000) + 1000;
 }
 
 async function runScenario(file: string, runDir: string): Promise<ScenarioResult> {
@@ -66,13 +52,16 @@ async function runScenario(file: string, runDir: string): Promise<ScenarioResult
       });
       const body = await res.json();
 
-      if (res.status === 429 || (res.status === 502 && /rate_limit_exceeded/.test(JSON.stringify(body)))) {
+      // The Worker now forwards Groq's 429 as-is (see providers/types.ts's
+      // ProviderError) instead of flattening every upstream failure into a
+      // 502, so a rate limit no longer needs sniffing out of a 502 body.
+      if (res.status === 429) {
         if (attempt === MAX_RETRIES) {
           const ms = Date.now() - start;
           await writeFile(join(runDir, `${name}.json`), JSON.stringify(body, null, 2));
           return { name, ok: false, ms, error: `rate-limited after ${MAX_RETRIES} attempts: ${JSON.stringify(body)}` };
         }
-        const delay = retryDelayMs(JSON.stringify(body));
+        const delay = parseRetryDelayMs(res.headers.get("retry-after"), JSON.stringify(body));
         console.log(`  ${name}: rate-limited (attempt ${attempt}/${MAX_RETRIES}), retrying in ${Math.round(delay / 1000)}s`);
         await sleep(delay);
         continue;

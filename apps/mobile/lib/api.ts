@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { SuggestRequest, SuggestResponse, type CardWithImage, type Item, type Location } from '@mobile-recipes/shared';
+import { SuggestRequest, SuggestResponse, parseRetryDelayMs, type CardWithImage, type Item, type Location } from '@mobile-recipes/shared';
 
 import { db } from '@db/client';
 import { items as itemsTable } from '@db/schema';
@@ -28,7 +28,6 @@ function joinSpanish(items: string[]): string {
 }
 
 const MAX_SUGGEST_ATTEMPTS = 3;
-const DEFAULT_RETRY_DELAY_MS = 5_000;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -36,17 +35,14 @@ function sleep(ms: number): Promise<void> {
 
 // Groq's free tier (30 req/min, but 8,000 tokens/min is the tighter real
 // limit — see CLAUDE.md → Free tier ceilings, "the current binding
-// constraint") means a 502 here is a normal transient condition during real
-// use, not just under test load. Same "try again in Ns" hint the harness
-// (apps/worker/harness/run.ts) parses, since the Worker forwards Groq's raw
-// error body through untouched.
-function retryDelayMs(body: string): number {
-  const match = body.match(/try again in ([\d.]+)s/i);
-  if (!match) return DEFAULT_RETRY_DELAY_MS;
-  return Math.ceil(parseFloat(match[1]) * 1000) + 1000;
-}
-
-async function postSuggest(body: SuggestRequest): Promise<unknown> {
+// constraint") means a 429 here is a normal transient condition during real
+// use, not just under test load. parseRetryDelayMs (packages/shared) prefers
+// the Worker's forwarded Retry-After header and falls back to regexing
+// Groq's own "try again in Ns" hint out of the error body.
+//
+// onThrottled fires before each retry sleep so the caller (the deck) can
+// show something other than the generic loading copy while it waits.
+async function postSuggest(body: SuggestRequest, onThrottled?: (delayMs: number) => void): Promise<unknown> {
   for (let attempt = 1; attempt <= MAX_SUGGEST_ATTEMPTS; attempt++) {
     const res = await fetch(`${WORKER_URL}/suggest`, {
       method: 'POST',
@@ -60,16 +56,24 @@ async function postSuggest(body: SuggestRequest): Promise<unknown> {
     if (!isRetryable || attempt === MAX_SUGGEST_ATTEMPTS) {
       throw new Error(`suggest request failed: ${res.status}`);
     }
-    await sleep(retryDelayMs(text));
+    const delay = parseRetryDelayMs(res.headers.get('retry-after'), text);
+    onThrottled?.(delay);
+    await sleep(delay);
   }
   // Unreachable — the loop above always returns or throws by the last attempt.
   throw new Error('suggest request failed: exhausted retries');
 }
 
-// `count` defaults to a full batch server-side when omitted — the only
-// caller that passes it is the deck's two-phase first load (2 cards, then
-// 3), a Groq streaming workaround. See CLAUDE.md "Decisions already made".
-export async function fetchSuggestions(notes: string, exclude: string[], count?: number): Promise<CardWithImage[]> {
+// `count` defaults to a full batch server-side when omitted — the caller
+// that passes it is the deck's two-phase batch split (2 cards, then 3, for
+// every batch), a Groq streaming workaround. See CLAUDE.md "Decisions
+// already made".
+export async function fetchSuggestions(
+  notes: string,
+  exclude: string[],
+  count?: number,
+  onThrottled?: (delayMs: number) => void,
+): Promise<CardWithImage[]> {
   const active = db.select().from(itemsTable).where(eq(itemsTable.active, true)).all() as Item[];
 
   const body = SuggestRequest.parse({
@@ -84,6 +88,6 @@ export async function fetchSuggestions(notes: string, exclude: string[], count?:
     count,
   });
 
-  const json = await postSuggest(body);
+  const json = await postSuggest(body, onThrottled);
   return SuggestResponse.parse(json).cards;
 }

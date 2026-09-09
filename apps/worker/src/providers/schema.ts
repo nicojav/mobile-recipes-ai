@@ -6,11 +6,12 @@ import { ProviderError } from "./types";
 // is Worker-authored envelope metadata (see packages/shared/src/api.ts), not
 // something a model needs to produce.
 //
-// Count-parameterized (not a single module-level constant) because the first
-// suggestion batch of a session is split 2-then-3 — a Groq workaround, see
-// CLAUDE.md "Decisions already made". Memoized per count since providers
-// derive their JSON Schema from this at module load and only ever see
-// FIRST_PAINT_COUNT, CARD_COUNT - FIRST_PAINT_COUNT, or CARD_COUNT.
+// Count-parameterized (not a single module-level constant) because every
+// suggestion batch is split 2-then-3 — a Groq workaround, see CLAUDE.md
+// "Decisions already made". Memoized per count since providers derive their
+// JSON Schema from this at module load and only ever see FIRST_PAINT_COUNT,
+// CARD_COUNT - FIRST_PAINT_COUNT, or (from the harness, whose scenario
+// payloads omit `count`) CARD_COUNT itself.
 const payloadSchemaCache = new Map<number, z.ZodType<{ cards: Card[] }>>();
 
 export function cardsPayloadFor(count: number): z.ZodType<{ cards: Card[] }> {
