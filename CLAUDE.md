@@ -1,13 +1,14 @@
-# Recipe suggestion app — Phase 1 spec
+# Potlucky — Phase 1 spec
 
 Drop this at the repo root. It's the working context for the build.
 
 ## What this is
 
-An Android app that suggests meal ideas based on what's in the kitchen. The user
-browses suggestions by swiping through a card deck, book-style (back/next, not
-Tinder-style decide-and-discard — see Screens below). Spanish rioplatense,
-voseo, Argentine ingredient vocabulary and recipe repertoire.
+**Potlucky.** An Android app that suggests meal ideas based on what's in the
+kitchen. The user browses suggestions by swiping through a card deck,
+book-style (back/next, not Tinder-style decide-and-discard — see Screens
+below). Spanish rioplatense, voseo, Argentine ingredient vocabulary and
+recipe repertoire.
 
 Single user, single device, no accounts, no sync. Built for real use by its author
 as a home cook in Buenos Aires.
@@ -561,3 +562,16 @@ Score each batch of five on:
   serializing them (~75s to fill a batch) — more complexity than the local
   skip needed to solve the actual problem. See
   `plans/adr/0001-dev-image-generation-toggle.md` for the full rationale.
+- The app is named **Potlucky**, English, deliberately — even though testing
+  is Argentina-only right now and the UI is `es-AR`. A US/English release is
+  planned later, and "potluck" already means, in English, a meal made from
+  whatever happens to be available: the app's whole premise, not a metaphor
+  for it. Argentine-slang names (Morfi, Rejunte) and Spanish-descriptive ones
+  (Qué Cocino, Recetas a Mano) were considered and dropped — they don't
+  survive contact with an English store listing. The app mark (`Pot` in
+  `apps/mobile/src/components/icons.tsx`, source at
+  `apps/mobile/assets/logo.svg`) is `Bowl`'s own arc and rim with a lid added
+  — see `Design.md`'s "Name and mark" section for why the other two drafted
+  variants (handles, a die-pip knob) lost: both broke apart into indistinct
+  blobs at the 48px size Android actually renders a launcher icon at, checked
+  by rasterizing all three rather than judging the source SVGs.
