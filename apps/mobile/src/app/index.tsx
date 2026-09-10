@@ -136,6 +136,13 @@ export default function KitchenScreen() {
                 <Bookmark size={14} color={theme.text} />
                 <ThemedText type="link">{t('kitchen.viewSaved')}</ThemedText>
               </Pressable>
+              {__DEV__ && (
+                // Dev-only, ticket #4's prototype — remove once a variant
+                // wins and folds into the real nav entry point.
+                <Pressable style={styles.savedLink} onPress={() => router.push('/prototype-reposteria')}>
+                  <ThemedText type="link">🧪 Repostería</ThemedText>
+                </Pressable>
+              )}
             </View>
           </View>
           <View
