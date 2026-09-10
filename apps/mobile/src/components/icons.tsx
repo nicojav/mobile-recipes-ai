@@ -123,3 +123,17 @@ export function Bowl({ size, color }: IconProps) {
     </Icon>
   );
 }
+
+// App mark (assets/logo.svg) — Bowl's own arc and rim plus a lid, closed. Kept
+// here as source of truth for the mark's geometry, same as every other icon
+// in this file; not used by any screen yet.
+export function Pot({ size, color }: IconProps) {
+  return (
+    <Icon size={size}>
+      <Path d="M3.5 12.5a8.5 8.5 0 0 0 17 0" stroke={color} strokeWidth={STROKE_WIDTH} strokeLinecap="round" />
+      <Path d="M3.5 12.5h17" stroke={color} strokeWidth={STROKE_WIDTH} strokeLinecap="round" />
+      <Path d="M7 10c1.2-2.2 3.1-3.5 5-3.5s3.8 1.3 5 3.5" stroke={color} strokeWidth={STROKE_WIDTH} strokeLinecap="round" />
+      <SvgCircle cx="12" cy="5.5" r="1" fill={color} />
+    </Icon>
+  );
+}

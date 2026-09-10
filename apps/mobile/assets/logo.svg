@@ -1,0 +1,9 @@
+<!-- Potlucky mark, variant C — minimal. Bowl's own arc + rim (icons.tsx:115),
+     unchanged, plus a lid arch and knob. Fewest strokes, best odds of holding
+     together at a 48px launcher size. -->
+<svg viewBox="-6 -6 108 108" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M14 50 A34 34 0 0 0 82 50" stroke="#4B6B4F" stroke-width="6" stroke-linecap="round"/>
+  <path d="M14 50 L82 50" stroke="#4B6B4F" stroke-width="6" stroke-linecap="round"/>
+  <path d="M28 40 Q48 26 68 40" stroke="#4B6B4F" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="48" cy="22" r="4" fill="#4B6B4F"/>
+</svg>

@@ -18,6 +18,30 @@ Mi cocina's stacked-accordion layout with a bento grid + bottom sheet. Treat
 every value below as the new ground truth for `apps/mobile/src/constants/theme.ts`
 and the screens, not an addition to what's there today.
 
+## Name and mark
+
+The app icon, splash, and favicon are one mark — a lidded pot — generated from
+a single source, `apps/mobile/assets/logo.svg`, via
+`apps/mobile/scripts/generate-icons.mjs`. Never hand-edit the PNGs in
+`assets/images/`; regenerate them from the SVG instead.
+
+The mark is `Bowl` (`apps/mobile/src/components/icons.tsx`, the recipe-image
+placeholder) with a lid arch and a knob added — same stroke vocabulary as
+every other icon here (1.5@24, round caps, `accent` on `background`, no
+fills but the single knob dot). It's also exported as `Pot` in that file, for
+the same reason `Bowl` lives there: one place holds every icon's geometry.
+
+Two other directions were drawn and rejected — a version with straight sides
+and two handles, and the same with the knob swapped for a single-pip die
+(a wink at the cuisine interstitial's `🎲 Girar`). Both read fine at 1024px
+and fell apart at 48px: the handles are two thin arcs, and an arc that reads
+as a loop at icon-preview size resolves to an indistinct blob at the size
+Android actually renders a launcher icon. This was checked by rasterizing
+all three candidates — launcher row, adaptive circle mask, themed monochrome
+circle, splash — rather than judged from the source SVGs; the surviving
+mark is the one with the fewest strokes, on purpose. See `CLAUDE.md`'s
+"Decisions already made" for why the name itself is English.
+
 ## Color tokens
 
 Extends `Colors` in `constants/theme.ts`. Every text-on-fill pair below is
