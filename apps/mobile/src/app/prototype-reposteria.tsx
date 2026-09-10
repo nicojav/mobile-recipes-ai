@@ -13,16 +13,52 @@ import { PrototypeSwitcher } from '@/components/prototype-switcher';
 import { Radius, Spacing, MaxContentWidth } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
+type Theme = ReturnType<typeof useTheme>;
+
 // PROTOTYPE — throwaway, resolving wayfinder ticket "Repostería pantry page
 // UI/UX prototype" (github.com/nicojav/mobile-recipes-ai/issues/4), a child
 // of the "Repostería: baked goods section" map (issue #2). ROUND 2 — the
 // first round (four chip/pill-grid variants) was rejected: "too many pills,
 // the pill element itself doesn't feel good here." This round drops Chip
 // entirely and tries three genuinely different interaction models instead.
-// Deliberately no pill-radius (999) anywhere below. Not wired to Drizzle or
+// Deliberately no pill-radius (999) anywhere below. Variant A won that round
+// ("good, but needs more work — an image or icon per ingredient for better
+// visualization"); it now carries a leading per-row glyph plus a trailing
+// check as a clearer selected/unselected state. Not wired to Drizzle or
 // i18next — plain in-memory mock state and hardcoded es-AR copy. See
 // .claude/skills/prototype/UI.md §6 for the capture-and-discard plan once a
 // direction is picked.
+
+// Stand-ins for "does a visual per row help scanning" — plain emoji, not
+// this app's real thin-line icon vocabulary (Design.md explicitly rejects
+// emoji as a style choice elsewhere in the app: "those were always a
+// placeholder for 'no icon library,' not a style choice"). If this wins,
+// these get replaced by proper category icons or real ingredient photos.
+// Deliberately keyed by seed name only — quick-added items are always
+// free text, so they can never have curated art; the letter-monogram
+// fallback in ItemAvatar below is a real constraint of this direction; not
+// a prototype shortcut.
+const ITEM_GLYPH: Record<string, string> = {
+  'harina 0000': '🌾',
+  'harina leudante': '🌾',
+  'azúcar': '🍬',
+  'azúcar impalpable': '❄️',
+  'manteca': '🧈',
+  'huevos': '🥚',
+  'levadura seca': '🫙',
+  'polvo de hornear': '✨',
+  'esencia de vainilla': '🧴',
+  'leche': '🥛',
+  'dulce de leche': '🍯',
+  'chocolate cobertura': '🍫',
+  'cacao amargo': '🟫',
+  'coco rallado': '🥥',
+  'ralladura de limón': '🍋',
+  'canela': '🍂',
+  'nuez moscada': '🌰',
+  'pasas de uva': '🍇',
+  'nueces': '🥜',
+};
 
 const SEED_NAMES = [
   'harina 0000',
@@ -64,6 +100,30 @@ function useMockPantry() {
   };
 
   return { items, toggle, add };
+}
+
+// Leading per-row visual: curated glyph when the item has one (ITEM_GLYPH),
+// otherwise a letter monogram — the fallback quick-added items always hit.
+// Dimmed when inactive so the row's selected state reads at a glance
+// without relying on text color alone.
+function ItemAvatar({ item, theme }: { item: PantryItem; theme: Theme }) {
+  const glyph = ITEM_GLYPH[item.name];
+  return (
+    <View
+      style={[
+        styles.avatar,
+        { backgroundColor: item.active ? theme.accentTint : theme.background, borderColor: item.active ? theme.accentTint : theme.border },
+      ]}
+    >
+      {glyph ? (
+        <ThemedText style={[styles.avatarGlyph, !item.active && styles.avatarDim]}>{glyph}</ThemedText>
+      ) : (
+        <ThemedText type="smallBold" style={{ color: item.active ? theme.accentText : theme.textSecondary }}>
+          {item.name[0]?.toUpperCase()}
+        </ThemedText>
+      )}
+    </View>
+  );
 }
 
 // --- Variant A: checklist. The most conventional reading of "toggle which
@@ -117,8 +177,11 @@ function VariantA() {
             style={[styles.row, i < filtered.length - 1 && styles.rowDivider, { borderBottomColor: theme.border }]}
             onPress={() => toggle(item.id)}
           >
+            <ItemAvatar item={item} theme={theme} />
+            <ThemedText themeColor={item.active ? 'text' : 'textSecondary'} style={styles.rowGrow}>
+              {item.name}
+            </ThemedText>
             {item.active ? <CheckCircle size={18} color={theme.accent} /> : <OpenCircle size={18} color={theme.border} />}
-            <ThemedText themeColor={item.active ? 'text' : 'textSecondary'}>{item.name}</ThemedText>
           </Pressable>
         ))}
         {filtered.length === 0 && exactMatch && (
@@ -390,6 +453,21 @@ const styles = StyleSheet.create({
   },
   rowGrow: {
     flex: 1,
+  },
+  avatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarGlyph: {
+    fontSize: 18,
+    lineHeight: 22,
+  },
+  avatarDim: {
+    opacity: 0.35,
   },
   emptyText: {
     paddingHorizontal: Spacing.three,
