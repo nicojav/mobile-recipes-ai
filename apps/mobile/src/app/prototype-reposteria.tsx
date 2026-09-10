@@ -1,8 +1,7 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Circle, Path, Rect, Svg } from 'react-native-svg';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -11,6 +10,7 @@ import { BottomSheet } from '@/components/bottom-sheet';
 import { PrimaryButton } from '@/components/primary-button';
 import { CheckCircle, OpenCircle, Pencil, Plus, Search, XIcon } from '@/components/icons';
 import { PrototypeSwitcher } from '@/components/prototype-switcher';
+import { ingredientPhotos, type IngredientPhotoKey } from '@/constants/ingredient-photos';
 import { Radius, Spacing, MaxContentWidth } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -24,54 +24,35 @@ type Theme = ReturnType<typeof useTheme>;
 // entirely and tries three genuinely different interaction models instead.
 // Deliberately no pill-radius (999) anywhere below. Variant A won that round
 // ("good, but needs more work — an image or icon per ingredient for better
-// visualization"); it now carries a leading per-row icon plus a trailing
-// check as a clearer selected/unselected state. The icons started as
-// placeholder emoji, then got swapped for real hand-drawn vectors in this
-// app's own thin-line vocabulary once asked to "see it in action" — see
-// IngredientIcon below. Not wired to Drizzle or i18next — plain in-memory
-// mock state and hardcoded es-AR copy. See
+// visualization"); it now carries a leading per-row visual plus a trailing
+// check as a clearer selected/unselected state. That visual went emoji →
+// hand-drawn vector icons → real photos (see ingredient-photos.ts) once the
+// vector icons themselves didn't read clearly enough per-ingredient. Not
+// wired to Drizzle or i18next — plain in-memory mock state and hardcoded
+// es-AR copy. See
 // .claude/skills/prototype/UI.md §6 for the capture-and-discard plan once a
 // direction is picked.
 
-// Real icons, not a stand-in — same 1.5-stroke/24-viewBox/round-cap
-// vocabulary as icons.tsx (see Design.md's "Icon set" section), just kept
-// local to this prototype until a direction wins. Deliberately category
-// shapes, not literal photos: "flourBag" covers both flours, etc.
-// Quick-added items are always free text, so they can never have curated
-// art — the letter-monogram fallback in ItemAvatar below is a real
-// constraint of this direction, not a prototype shortcut.
-type IngredientIconKind =
-  | 'flourBag'
-  | 'sugar'
-  | 'poweredSugar'
-  | 'butter'
-  | 'egg'
-  | 'yeast'
-  | 'bakingPowder'
-  | 'vanilla'
-  | 'milk'
-  | 'dulceDeLeche'
-  | 'chocolate'
-  | 'cacao'
-  | 'coconut'
-  | 'lemon'
-  | 'cinnamon'
-  | 'nutmeg'
-  | 'raisins'
-  | 'walnut';
-
-const ITEM_ICON: Record<string, IngredientIconKind> = {
-  'harina 0000': 'flourBag',
-  'harina leudante': 'flourBag',
+// Real photos, not a stand-in — generated via the Worker's actual FLUX
+// pipeline (see ingredient-photos.ts), the same real image generation the
+// abstract line icons were swapped out for once asked to "see it in action"
+// with real images. Category-level, not per-item: both flours share
+// "flour-bag", matching the vector-icon round's grouping.  Quick-added
+// items are always free text, so they can never have curated art — the
+// letter-monogram fallback in ItemAvatar below is a real constraint of this
+// direction, not a prototype shortcut.
+const ITEM_PHOTO: Record<string, IngredientPhotoKey> = {
+  'harina 0000': 'flour-bag',
+  'harina leudante': 'flour-bag',
   'azúcar': 'sugar',
-  'azúcar impalpable': 'poweredSugar',
+  'azúcar impalpable': 'powdered-sugar',
   'manteca': 'butter',
   'huevos': 'egg',
   'levadura seca': 'yeast',
-  'polvo de hornear': 'bakingPowder',
+  'polvo de hornear': 'baking-powder',
   'esencia de vainilla': 'vanilla',
   'leche': 'milk',
-  'dulce de leche': 'dulceDeLeche',
+  'dulce de leche': 'dulce-de-leche',
   'chocolate cobertura': 'chocolate',
   'cacao amargo': 'cacao',
   'coco rallado': 'coconut',
@@ -81,128 +62,6 @@ const ITEM_ICON: Record<string, IngredientIconKind> = {
   'pasas de uva': 'raisins',
   'nueces': 'walnut',
 };
-
-const ICON_STROKE = 1.5;
-
-function IngredientIcon({ kind, size = 18, color }: { kind: IngredientIconKind; size?: number; color: string }) {
-  const p = { stroke: color, strokeWidth: ICON_STROKE, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, fill: 'none' };
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      {kind === 'flourBag' && (
-        <>
-          <Path d="M9 8V6a3 3 0 0 1 6 0v2" {...p} />
-          <Path d="M8 8h8l1 11a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2l1-11z" {...p} />
-        </>
-      )}
-      {kind === 'sugar' && (
-        <>
-          <Path d="M4 18h16" {...p} />
-          <Path d="M7 18c0-4 2-8 5-8s5 4 5 8" {...p} />
-          <Circle cx="10.5" cy="13.5" r="0.6" fill={color} />
-          <Circle cx="13.5" cy="11.5" r="0.6" fill={color} />
-          <Circle cx="14.5" cy="14.5" r="0.6" fill={color} />
-        </>
-      )}
-      {kind === 'poweredSugar' && (
-        <>
-          <Circle cx="12" cy="9" r="5" {...p} />
-          <Path d="M7.5 9h9M12 4.5v9" {...p} />
-          <Path d="M9 16l-1 3M12 16v3M15 16l1 3" {...p} />
-        </>
-      )}
-      {kind === 'butter' && (
-        <>
-          <Rect x="5" y="9" width="14" height="8" rx="1.5" {...p} />
-          <Path d="M8 9V7.5C8 6.7 8.9 6 10 6h4c1.1 0 2 .7 2 1.5V9" {...p} />
-          <Path d="M5 13h14" {...p} />
-        </>
-      )}
-      {kind === 'egg' && <Path d="M12 3C9 7 6 11.5 6 15a6 6 0 0 0 12 0c0-3.5-3-8-6-12z" {...p} />}
-      {kind === 'yeast' && (
-        <>
-          <Rect x="7" y="6" width="10" height="3" rx="1" {...p} />
-          <Rect x="8" y="9" width="8" height="10" rx="1.5" {...p} />
-          <Path d="M10 12.5h4M10 15.5h4" {...p} />
-        </>
-      )}
-      {kind === 'bakingPowder' && (
-        <>
-          <Path d="M6 7c0-1.1 2.7-2 6-2s6 .9 6 2-2.7 2-6 2-6-.9-6-2z" {...p} />
-          <Path d="M6 7v12a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7" {...p} />
-        </>
-      )}
-      {kind === 'vanilla' && (
-        <>
-          <Path d="M10.5 3h3v3l1.5 1.5c.3.3.5.8.5 1.2v9.8a2 2 0 0 1-2 2h-3a2 2 0 0 1-2-2V8.7c0-.4.2-.9.5-1.2L10.5 6V3z" {...p} />
-          <Path d="M9.5 13h5" {...p} />
-        </>
-      )}
-      {kind === 'milk' && (
-        <>
-          <Path d="M8 4h8l1 3v12a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V7l1-3z" {...p} />
-          <Path d="M8 4l4 3 4-3" {...p} />
-        </>
-      )}
-      {kind === 'dulceDeLeche' && (
-        <>
-          <Path d="M7 7a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v2H7V7z" {...p} />
-          <Path d="M7 9h10v9a3 3 0 0 1-3 3h-4a3 3 0 0 1-3-3V9z" {...p} />
-        </>
-      )}
-      {kind === 'chocolate' && (
-        <>
-          <Rect x="5" y="7" width="14" height="10" rx="1" {...p} />
-          <Path d="M9 7v10M13.5 7v10M5 12h14" {...p} />
-        </>
-      )}
-      {kind === 'cacao' && (
-        <>
-          <Path d="M4 17c0-3.5 3-6 8-6s8 2.5 8 6" {...p} />
-          <Path d="M4 17h16" {...p} />
-          <Path d="M9 13c1-1 2-1 3 0s2 1 3 0" {...p} />
-        </>
-      )}
-      {kind === 'coconut' && (
-        <>
-          <Path d="M4 13a8 5.5 0 0 1 16 0" {...p} />
-          <Path d="M4 13h16" {...p} />
-          <Path d="M7.5 13c.4-1.8 1.3-2.8 1.8-3M11.5 13c.2-2 .7-3 .7-3M15.5 13c-.4-1.8-1.3-2.8-1.8-3" {...p} />
-        </>
-      )}
-      {kind === 'lemon' && (
-        <>
-          <Path d="M4 12.5c0-3.6 3.6-6.5 8-6.5s8 2.9 8 6.5-3.6 6.5-8 6.5-8-2.9-8-6.5z" {...p} />
-          <Path d="M12.5 6c.3-1.4 1.7-2 2.8-1.8" {...p} />
-        </>
-      )}
-      {kind === 'cinnamon' && <Path d="M7.5 4c-2 3.3-2 12.7 0 16M11 4c-1.3 3.3-1.3 12.7 0 16M14.5 4c-2 3.3-2 12.7 0 16" {...p} />}
-      {kind === 'nutmeg' && (
-        <>
-          <Path d="M7 12a5 6 0 1 1 10 0 5 6 0 0 1-10 0z" {...p} />
-          <Circle cx="10" cy="10" r="0.5" fill={color} />
-          <Circle cx="13.5" cy="9.3" r="0.5" fill={color} />
-          <Circle cx="10.8" cy="14" r="0.5" fill={color} />
-          <Circle cx="14" cy="13" r="0.5" fill={color} />
-        </>
-      )}
-      {kind === 'raisins' && (
-        <>
-          <Path d="M11 5.5c0-1 1-1.8 2-1.8s2 .8 2 1.8" {...p} />
-          <Path d="M12 7.5v3" {...p} />
-          <Circle cx="9.3" cy="14" r="2.2" {...p} />
-          <Circle cx="14.2" cy="15" r="2.2" {...p} />
-          <Circle cx="11.8" cy="11" r="2.2" {...p} />
-        </>
-      )}
-      {kind === 'walnut' && (
-        <>
-          <Path d="M6 12a6 7 0 1 1 12 0 6 7 0 0 1-12 0z" {...p} />
-          <Path d="M9 8c1 2 0 3 1.5 4S10 14 11.5 15.5M15 8c-1 2 0 3-1.5 4S14 14 12.5 15.5" {...p} />
-        </>
-      )}
-    </Svg>
-  );
-}
 
 const SEED_NAMES = [
   'harina 0000',
@@ -246,25 +105,25 @@ function useMockPantry() {
   return { items, toggle, add };
 }
 
-// Leading per-row visual: the real icon when the item has one (ITEM_ICON),
+// Leading per-row visual: the real photo when the item has one (ITEM_PHOTO),
 // otherwise a letter monogram — the fallback quick-added items always hit.
 // Dimmed when inactive so the row's selected state reads at a glance
 // without relying on text color alone.
 function ItemAvatar({ item, theme }: { item: PantryItem; theme: Theme }) {
-  const kind = ITEM_ICON[item.name];
-  const iconColor = item.active ? theme.accentText : theme.textSecondary;
+  const photoKey = ITEM_PHOTO[item.name];
+  const monogramColor = item.active ? theme.accentText : theme.textSecondary;
   return (
     <View
       style={[
         styles.avatar,
-        { backgroundColor: item.active ? theme.accentTint : theme.background, borderColor: item.active ? theme.accentTint : theme.border },
+        { backgroundColor: item.active ? theme.accentTint : theme.background, borderColor: item.active ? theme.accent : theme.border },
         !item.active && styles.avatarDim,
       ]}
     >
-      {kind ? (
-        <IngredientIcon kind={kind} size={19} color={iconColor} />
+      {photoKey ? (
+        <Image source={ingredientPhotos[photoKey]} style={styles.avatarPhoto} resizeMode="cover" />
       ) : (
-        <ThemedText type="smallBold" style={{ color: iconColor }}>
+        <ThemedText type="smallBold" style={{ color: monogramColor }}>
           {item.name[0]?.toUpperCase()}
         </ThemedText>
       )}
@@ -614,6 +473,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  avatarPhoto: {
+    width: '100%',
+    height: '100%',
   },
   avatarDim: {
     opacity: 0.55,
