@@ -322,8 +322,17 @@ card's `imageUrl` (a `GET /img/<key>?prompt=<imagePrompt>` URL) synchronously
 client actually requests that URL, which is what lets the card render
 immediately regardless of whether its image is cached yet.
 
-After a few weeks of use, most suggestions hit cache and daily generation
-approaches zero.
+**This does not currently hold in practice.** The key is `slugify(title)`,
+and Groq's active provider runs at default (non-deterministic) sampling, so
+the same kitchen produces a different `title` on separate calls, hence a
+different R2 key, hence a cache miss — not just on first generation, but
+nearly every time. See `plans/adr/0001-dev-image-generation-toggle.md` for
+the root-cause writeup (it surfaced first as dev-quota burn, but the same
+mechanism applies to real usage) and
+`plans/adr/0002-validate-before-monetizing.md` for the fix: a stable
+`dishKey` field the model emits alongside the creative `title`, slugged
+instead of it, so cache hits actually converge toward zero generation
+without giving up the variety a non-deterministic `title` provides.
 
 **Why `imagePrompt` must be English and descriptive:** image models are trained on
 English food photography. "tortilla de papa" risks returning a Mexican flatbread.
@@ -396,6 +405,20 @@ before touching any screen's styling.
 3. **Detalle** — full ingredient list with check/dash per item, numbered steps,
    `Guardar` and `La cociné`.
 4. **Guardadas** — saved recipes list.
+5. **Calendario** (`Esta semana`) — a weekly meal planner, reachable from Mi
+   cocina's header. A 7-day strip (today + 6, `Intl.DateTimeFormat("es-AR",
+   {weekday: "short"})`) with two slots per day, `almuerzo` and `cena`. Each
+   empty slot has a `Generar receta` button that fetches exactly one card
+   (`count: 1`) with the meal type passed through the existing free-text
+   `notes` field (`MEAL_HINT` in `use-calendar-plan.ts`) — no API/schema
+   change, same pattern as the cuisine interstitial. A filled slot gets a
+   `Regenerar` link, which is another single-card call.
+   **The week is deliberately not persisted** — `useCalendarPlan` holds it in
+   `useState` only, no Drizzle table. Closing the app discards it. That was
+   never evaluated against the app's "no accounts, no backend, single
+   device" scope on its own terms; see `plans/adr/0002-validate-before-monetizing.md`
+   for why a persisted version of this plan is the leading candidate for a
+   future paywall's premium story, should one ever ship.
 
 ### Not yet designed
 
