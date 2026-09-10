@@ -291,6 +291,17 @@ at the same time as the restyle.
 - **`EmptyState`** — not designed on the canvas yet (still open per
   `CLAUDE.md`'s "Not yet designed" list); use `Screen`'s tokens (surface,
   textSecondary, a simple icon) when it's built, don't hold up this pass for it.
+- **Day strip** (calendar screen's `Esta semana` week selector) — horizontal
+  pill row, active pill `accent` fill + white label, inactive `surface` fill +
+  `border`, two-line label (`micro` weekday over `smallBold` day number).
+  Full-bleed: the scroller cancels the screen's side inset with a negative
+  margin and moves that inset onto its own content padding, so pills scroll
+  off the true screen edge instead of clipping at the inset. Give the
+  scroller `flexGrow: 0` / `flexShrink: 0` — as a sibling of another
+  scrollable list in a flex column, it will otherwise get squeezed (and its
+  pills visibly clipped) whenever the sibling's content grows past the
+  screen. Same fix applies anywhere else a horizontal scroller sits above or
+  beside vertically-scrolling content.
 
 ## Accessibility
 

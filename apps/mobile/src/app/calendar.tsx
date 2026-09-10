@@ -42,7 +42,12 @@ export default function CalendarScreen() {
           {t('calendar.title')}
         </ThemedText>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dayStrip}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.dayStripScroll}
+          contentContainerStyle={styles.dayStrip}
+        >
           {days.map((day) => {
             const active = day.key === selectedDay;
             return (
@@ -67,7 +72,7 @@ export default function CalendarScreen() {
           })}
         </ScrollView>
 
-        <ScrollView contentContainerStyle={styles.slots} showsVerticalScrollIndicator={false}>
+        <ScrollView style={styles.slotsScroll} contentContainerStyle={styles.slots} showsVerticalScrollIndicator={false}>
           {slots.map(({ slot, label }) => {
             const recipe = recipeFor(selectedDay, slot);
             const loading = isLoading(selectedDay, slot);
@@ -172,9 +177,23 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.two,
     paddingBottom: Spacing.three,
   },
+  dayStripScroll: {
+    // RN's ScrollView base style is flexGrow/flexShrink: 1. Left as-is, this
+    // strip shrinks alongside the slots list once generated cards overflow the
+    // column, and the day numbers get clipped off the pills.
+    flexGrow: 0,
+    flexShrink: 0,
+    // Cancel safeArea's inset so chips scroll off the true screen edge rather
+    // than being sliced 16px in; the inset moves onto dayStrip below.
+    marginHorizontal: -Spacing.three,
+  },
   dayStrip: {
     gap: Spacing.two,
+    paddingHorizontal: Spacing.three,
     paddingBottom: Spacing.three,
+  },
+  slotsScroll: {
+    flex: 1,
   },
   dayPill: {
     alignItems: 'center',
