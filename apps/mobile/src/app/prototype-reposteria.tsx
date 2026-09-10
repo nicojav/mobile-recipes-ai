@@ -17,11 +17,13 @@ type Theme = ReturnType<typeof useTheme>;
 
 // PROTOTYPE — throwaway, resolving wayfinder ticket "Repostería pantry page
 // UI/UX prototype" (github.com/nicojav/mobile-recipes-ai/issues/4), a child
-// of the "Repostería: baked goods section" map (issue #2). Three
-// structurally different takes on the flat baking-pantry page, switchable
-// via ?variant=. Not wired to Drizzle or i18next — plain in-memory mock
-// state and hardcoded es-AR copy, since the question here is layout and
-// interaction, not persistence or final strings. See
+// of the "Repostería: baked goods section" map (issue #2). Structurally
+// different takes on the flat baking-pantry page, switchable via ?variant=.
+// A/B/C were the first round; rejected as too much surrounding structure
+// around the chips (header mocks, sections, a toggle). D is the follow-up:
+// no chrome at all, just the pill grid. Not wired to Drizzle or i18next —
+// plain in-memory mock state and hardcoded es-AR copy, since the question
+// here is layout and interaction, not persistence or final strings. See
 // .claude/skills/prototype/UI.md §6 for the capture-and-discard plan once a
 // direction is picked.
 
@@ -344,7 +346,59 @@ function VariantC() {
   );
 }
 
+// --- Variant D: no chrome. Direct response to reacting to A/B/C as "too
+// much surrounding structure, not the pills themselves" — everything beyond
+// the title and the grid itself is gone: no header-context mock, no count
+// badge, no blurb, no pinned row/bento wrapper/alpha sections/segmented
+// toggle. Just the pill grid, generously spaced, as the whole page. Nav
+// entry point is deliberately not re-explored here — settle the pantry
+// surface itself first.
+function VariantD() {
+  const theme = useTheme();
+  const { items, toggle, add } = useMockPantry();
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState('');
+  const activeCount = items.filter((i) => i.active).length;
+
+  return (
+    <>
+      <View style={styles.plainHeader}>
+        <ThemedText type="title">Repostería</ThemedText>
+        <ThemedText type="small" themeColor="textSecondary">
+          {activeCount} de {items.length} activos
+        </ThemedText>
+      </View>
+      <View style={styles.plainChipWrap}>
+        {items.map((item) => (
+          <Chip key={item.id} label={item.name} active={item.active} onPress={() => toggle(item.id)} />
+        ))}
+        {adding ? (
+          <View style={[styles.addInput, { borderColor: theme.accent }]}>
+            <TextInput
+              autoFocus
+              value={draft}
+              onChangeText={setDraft}
+              placeholder="¿Qué agregás?"
+              placeholderTextColor={theme.textSecondary}
+              returnKeyType="done"
+              style={[styles.addInputField, { color: theme.text }]}
+              onSubmitEditing={() => {
+                add(draft);
+                setDraft('');
+                setAdding(false);
+              }}
+            />
+          </View>
+        ) : (
+          <Chip label="Agregar" active={false} dashed accent onPress={() => setAdding(true)} />
+        )}
+      </View>
+    </>
+  );
+}
+
 const VARIANTS = [
+  { key: 'D', name: 'Solo pills, sin chrome' },
   { key: 'A', name: 'Flat wrap' },
   { key: 'B', name: 'Pinned + top quick-add' },
   { key: 'C', name: 'Bento + alfabético' },
@@ -352,7 +406,7 @@ const VARIANTS = [
 
 export default function PrototypeReposteria() {
   const { variant: variantParam } = useLocalSearchParams<{ variant?: string }>();
-  const variant = variantParam ?? 'A';
+  const variant = variantParam ?? 'D';
 
   const setVariant = (key: string) => router.setParams({ variant: key });
 
@@ -360,6 +414,7 @@ export default function PrototypeReposteria() {
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+          {variant === 'D' && <VariantD />}
           {variant === 'A' && <VariantA />}
           {variant === 'B' && <VariantB />}
           {variant === 'C' && <VariantC />}
@@ -485,5 +540,13 @@ const styles = StyleSheet.create({
   },
   alphaSection: {
     gap: Spacing.two,
+  },
+  plainHeader: {
+    gap: Spacing.one,
+  },
+  plainChipWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.three,
   },
 });
