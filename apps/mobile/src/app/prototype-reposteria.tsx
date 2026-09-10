@@ -1,29 +1,26 @@
-import { useCallback, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Circle, Path, Svg } from 'react-native-svg';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { FloatingCTA } from '@/components/floating-cta';
-import { Chip } from '@/components/chip';
-import { Bookmark, CalendarIcon, Pencil } from '@/components/icons';
+import { BottomSheet } from '@/components/bottom-sheet';
+import { PrimaryButton } from '@/components/primary-button';
+import { CheckCircle, OpenCircle, Pencil, Plus, Search, XIcon } from '@/components/icons';
 import { PrototypeSwitcher } from '@/components/prototype-switcher';
 import { Radius, Spacing, MaxContentWidth } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
-type Theme = ReturnType<typeof useTheme>;
-
 // PROTOTYPE — throwaway, resolving wayfinder ticket "Repostería pantry page
 // UI/UX prototype" (github.com/nicojav/mobile-recipes-ai/issues/4), a child
-// of the "Repostería: baked goods section" map (issue #2). Structurally
-// different takes on the flat baking-pantry page, switchable via ?variant=.
-// A/B/C were the first round; rejected as too much surrounding structure
-// around the chips (header mocks, sections, a toggle). D is the follow-up:
-// no chrome at all, just the pill grid. Not wired to Drizzle or i18next —
-// plain in-memory mock state and hardcoded es-AR copy, since the question
-// here is layout and interaction, not persistence or final strings. See
+// of the "Repostería: baked goods section" map (issue #2). ROUND 2 — the
+// first round (four chip/pill-grid variants) was rejected: "too many pills,
+// the pill element itself doesn't feel good here." This round drops Chip
+// entirely and tries three genuinely different interaction models instead.
+// Deliberately no pill-radius (999) anywhere below. Not wired to Drizzle or
+// i18next — plain in-memory mock state and hardcoded es-AR copy. See
 // .claude/skills/prototype/UI.md §6 for the capture-and-discard plan once a
 // direction is picked.
 
@@ -56,369 +53,259 @@ function useMockPantry() {
     SEED_NAMES.map((name, i) => ({ id: String(i), name, active: true })),
   );
 
-  const toggle = useCallback((id: string) => {
+  const toggle = (id: string) => {
     setItems((prev) => prev.map((it) => (it.id === id ? { ...it, active: !it.active } : it)));
-  }, []);
+  };
 
-  const add = useCallback((name: string) => {
+  const add = (name: string) => {
     const trimmed = name.trim();
     if (!trimmed) return;
     setItems((prev) => [{ id: `new-${Date.now()}`, name: trimmed, active: true }, ...prev]);
-  }, []);
+  };
 
   return { items, toggle, add };
 }
 
-// Rolling pin, prototype-only — same 1.5-stroke/24-viewBox vocabulary as
-// icons.tsx. Fold into that file if a variant using it wins.
-function RollingPin({ size = 14, color }: { size?: number; color: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Path
-        d="M6 9h12a3 3 0 0 1 3 3 3 3 0 0 1-3 3H6a3 3 0 0 1-3-3 3 3 0 0 1 3-3z"
-        stroke={color}
-        strokeWidth={1.5}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <Path d="M3 12H1M23 12h-2" stroke={color} strokeWidth={1.5} strokeLinecap="round" />
-      <Circle cx="0.7" cy="12" r="0.7" fill={color} />
-      <Circle cx="23.3" cy="12" r="0.7" fill={color} />
-    </Svg>
-  );
-}
-
-// Mock excerpt of Mi cocina's real title row (see index.tsx), so the nav
-// entry point can be judged in context instead of floating alone. Inert —
-// tapping does nothing, this is chrome for comparison, not a working screen.
-function MiCocinaHeaderPreview({ theme, navEntry }: { theme: Theme; navEntry: React.ReactNode }) {
-  return (
-    <View style={[styles.headerPreview, { borderColor: theme.border, backgroundColor: theme.surface }]}>
-      <ThemedText type="micro" themeColor="textSecondary">
-        CONTEXTO — HEADER DE MI COCINA (INERTE)
-      </ThemedText>
-      <View style={styles.titleRow}>
-        <ThemedText type="title">Mi cocina</ThemedText>
-        <View style={styles.headerLinks}>
-          <View style={styles.savedLink}>
-            <CalendarIcon size={14} color={theme.textSecondary} />
-            <ThemedText type="link" themeColor="textSecondary">
-              Calendario
-            </ThemedText>
-          </View>
-          {navEntry}
-          <View style={styles.savedLink}>
-            <Bookmark size={14} color={theme.textSecondary} />
-            <ThemedText type="link" themeColor="textSecondary">
-              Guardadas
-            </ThemedText>
-          </View>
-        </View>
-      </View>
-    </View>
-  );
-}
-
-// --- Variant A: literal flat wrap, trailing quick-add chip (mirrors the
-// bottom-sheet's addInput/dashed-"Agregar" pattern from index.tsx, just
-// promoted to the main page since Repostería has no per-location sheet). Nav
-// entry: an icon+label link, same visual weight as the existing
-// Calendario/Guardadas links. This is the closest reading of the ticket's
-// literal ask — the baseline the other two argue against.
+// --- Variant A: checklist. The most conventional reading of "toggle which
+// of ~19 known things you have" — a scannable vertical list, not a wall.
+// Quick-add lives inline: typing something with no match surfaces an
+// "Agregar" row at the top of the same list, so there's only ever one
+// control to look at, not a separate add affordance.
 function VariantA() {
   const theme = useTheme();
   const { items, toggle, add } = useMockPantry();
-  const [adding, setAdding] = useState(false);
-  const [draft, setDraft] = useState('');
-  const activeCount = items.filter((i) => i.active).length;
+  const [query, setQuery] = useState('');
+
+  const q = query.trim().toLowerCase();
+  const filtered = q ? items.filter((i) => i.name.toLowerCase().includes(q)) : items;
+  const exactMatch = q ? items.some((i) => i.name.toLowerCase() === q) : true;
+
+  function addFromQuery() {
+    if (!q || exactMatch) return;
+    add(query);
+    setQuery('');
+  }
 
   return (
     <>
-      <MiCocinaHeaderPreview
-        theme={theme}
-        navEntry={
-          <View style={styles.savedLink}>
-            <RollingPin size={14} color={theme.text} />
-            <ThemedText type="link">Repostería</ThemedText>
-          </View>
-        }
-      />
-      <View style={styles.titleRow}>
-        <ThemedText type="title">Repostería</ThemedText>
-        <View style={[styles.countBadge, { backgroundColor: theme.accentTint }]}>
-          <ThemedText type="small" style={{ color: theme.accentText }}>
-            {activeCount}/{items.length}
-          </ThemedText>
-        </View>
+      <ThemedText type="title">Repostería</ThemedText>
+      <View style={[styles.searchBox, { backgroundColor: theme.surface, borderColor: query.trim() ? theme.accent : theme.border }]}>
+        <Pencil size={15} color={theme.textSecondary} />
+        <TextInput
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Buscá o agregá un ingrediente"
+          placeholderTextColor={theme.textSecondary}
+          returnKeyType="done"
+          onSubmitEditing={addFromQuery}
+          style={[styles.searchInput, { color: theme.text }]}
+        />
       </View>
-      <ThemedText type="small" themeColor="textSecondary" style={styles.blurb}>
-        Todo en un solo pozo, sin agrupar por lugar — como Mi cocina, pero sin cajones.
-      </ThemedText>
-      <View style={styles.chipWrap}>
-        {items.map((item) => (
-          <Chip key={item.id} label={item.name} active={item.active} onPress={() => toggle(item.id)} />
+      <View style={[styles.listCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        {!exactMatch && q.length > 0 && (
+          <Pressable
+            style={[styles.row, filtered.length > 0 && styles.rowDivider, { borderBottomColor: theme.border }]}
+            onPress={addFromQuery}
+          >
+            <Plus size={18} color={theme.accent} />
+            <ThemedText style={{ color: theme.accent }}>Agregar &quot;{query.trim()}&quot;</ThemedText>
+          </Pressable>
+        )}
+        {filtered.map((item, i) => (
+          <Pressable
+            key={item.id}
+            style={[styles.row, i < filtered.length - 1 && styles.rowDivider, { borderBottomColor: theme.border }]}
+            onPress={() => toggle(item.id)}
+          >
+            {item.active ? <CheckCircle size={18} color={theme.accent} /> : <OpenCircle size={18} color={theme.border} />}
+            <ThemedText themeColor={item.active ? 'text' : 'textSecondary'}>{item.name}</ThemedText>
+          </Pressable>
         ))}
-        {adding ? (
-          <View style={[styles.addInput, { borderColor: theme.accent }]}>
-            <TextInput
-              autoFocus
-              value={draft}
-              onChangeText={setDraft}
-              placeholder="¿Qué agregás?"
-              placeholderTextColor={theme.textSecondary}
-              returnKeyType="done"
-              style={[styles.addInputField, { color: theme.text }]}
-              onSubmitEditing={() => {
-                add(draft);
-                setDraft('');
-                setAdding(false);
-              }}
-            />
-          </View>
-        ) : (
-          <Chip label="Agregar" active={false} dashed accent onPress={() => setAdding(true)} />
+        {filtered.length === 0 && exactMatch && (
+          <ThemedText type="small" themeColor="textSecondary" style={styles.emptyText}>
+            Sin resultados.
+          </ThemedText>
         )}
       </View>
     </>
   );
 }
 
-// --- Variant B: lightweight non-location grouping ("Usás seguido" pinned
-// row) plus an always-visible top quick-add pill, echoing Mi cocina's notes
-// pill affordance but wired to actually add an item rather than pass
-// through as notes. Nav entry: a segmented Cocina/Repostería toggle
-// replacing the plain title row — reads as one pantry with two modes rather
-// than two same-weight destinations.
+// --- Variant B: search-first composer. Flips the model entirely — instead
+// of toggling from a full known list, you type and the catalog suggests;
+// picking one moves it into "Tenés esto" below. The full inactive catalog
+// is never shown as a browsable wall, only your active subset is — the bet
+// is that composing a short list by typing feels lighter than scanning 19
+// things to find the 5 you actually have.
 function VariantB() {
   const theme = useTheme();
   const { items, toggle, add } = useMockPantry();
-  const [draft, setDraft] = useState('');
+  const [query, setQuery] = useState('');
 
-  const pinned = items.slice(0, 5);
-  const rest = items.slice(5);
-  const activeCount = items.filter((i) => i.active).length;
+  const q = query.trim().toLowerCase();
+  const suggestions = q ? items.filter((i) => !i.active && i.name.toLowerCase().includes(q)).slice(0, 5) : [];
+  const exactMatch = q ? items.some((i) => i.name.toLowerCase() === q) : true;
+  const activeItems = items.filter((i) => i.active);
+
+  function pick(item: PantryItem) {
+    toggle(item.id);
+    setQuery('');
+  }
+
+  function addFromQuery() {
+    if (!q || exactMatch) return;
+    add(query);
+    setQuery('');
+  }
 
   return (
     <>
-      <View style={[styles.headerPreview, { borderColor: theme.border, backgroundColor: theme.surface }]}>
-        <ThemedText type="micro" themeColor="textSecondary">
-          CONTEXTO — HEADER DE MI COCINA (INERTE)
-        </ThemedText>
-        <View style={[styles.segmented, { borderColor: theme.border }]}>
-          <View style={[styles.segment, styles.segmentInactive]}>
-            <ThemedText type="small" themeColor="textSecondary">
-              Cocina
-            </ThemedText>
-          </View>
-          <View style={[styles.segment, { backgroundColor: theme.accent }]}>
-            <RollingPin size={13} color="#FFFFFF" />
-            <ThemedText type="smallBold" style={styles.segmentActiveLabel}>
-              Repostería
-            </ThemedText>
-          </View>
+      <ThemedText type="title">Repostería</ThemedText>
+      <View style={styles.searchAnchor}>
+        <View style={[styles.searchBox, { backgroundColor: theme.surface, borderColor: query.trim() ? theme.accent : theme.border }]}>
+          <Search size={15} color={theme.textSecondary} />
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Buscá o agregá un ingrediente"
+            placeholderTextColor={theme.textSecondary}
+            returnKeyType="done"
+            onSubmitEditing={addFromQuery}
+            style={[styles.searchInput, { color: theme.text }]}
+          />
         </View>
+        {q.length > 0 && (
+          <View style={[styles.dropdown, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            {!exactMatch && (
+              <Pressable style={styles.dropdownRow} onPress={addFromQuery}>
+                <Plus size={16} color={theme.accent} />
+                <ThemedText style={{ color: theme.accent }}>Agregar &quot;{query.trim()}&quot;</ThemedText>
+              </Pressable>
+            )}
+            {suggestions.map((item) => (
+              <Pressable key={item.id} style={styles.dropdownRow} onPress={() => pick(item)}>
+                <Plus size={16} color={theme.textSecondary} />
+                <ThemedText>{item.name}</ThemedText>
+              </Pressable>
+            ))}
+            {suggestions.length === 0 && exactMatch && (
+              <ThemedText type="small" themeColor="textSecondary" style={styles.dropdownEmpty}>
+                Ya la tenés agregada.
+              </ThemedText>
+            )}
+          </View>
+        )}
       </View>
 
-      <View style={styles.titleRow}>
-        <ThemedText type="title">Repostería</ThemedText>
-        <View style={[styles.countBadge, { backgroundColor: theme.accentTint }]}>
-          <ThemedText type="small" style={{ color: theme.accentText }}>
-            {activeCount}/{items.length}
+      <ThemedText type="micro" themeColor="textSecondary" style={styles.sectionLabel}>
+        TENÉS ESTO ({activeItems.length})
+      </ThemedText>
+      <View style={[styles.listCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        {activeItems.map((item, i) => (
+          <View key={item.id} style={[styles.row, i < activeItems.length - 1 && styles.rowDivider, { borderBottomColor: theme.border }]}>
+            <ThemedText style={styles.rowGrow}>{item.name}</ThemedText>
+            <Pressable hitSlop={8} onPress={() => toggle(item.id)}>
+              <XIcon size={14} color={theme.textSecondary} />
+            </Pressable>
+          </View>
+        ))}
+        {activeItems.length === 0 && (
+          <ThemedText type="small" themeColor="textSecondary" style={styles.emptyText}>
+            Todavía no agregaste nada.
           </ThemedText>
-        </View>
-      </View>
-
-      <View style={[styles.notes, { backgroundColor: theme.surface, borderColor: draft.trim() ? theme.accent : theme.border }]}>
-        <Pencil size={15} color={theme.textSecondary} />
-        <TextInput
-          value={draft}
-          onChangeText={setDraft}
-          placeholder="¿Qué agregás a la repostería?"
-          placeholderTextColor={theme.textSecondary}
-          returnKeyType="done"
-          style={[styles.notesInput, { color: theme.text }]}
-          onSubmitEditing={() => {
-            add(draft);
-            setDraft('');
-          }}
-        />
-      </View>
-
-      <ThemedText type="micro" themeColor="textSecondary" style={styles.sectionLabel}>
-        USÁS SEGUIDO
-      </ThemedText>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pinnedRow}>
-        {pinned.map((item) => (
-          <Chip key={item.id} label={item.name} active={item.active} accent={item.active} onPress={() => toggle(item.id)} />
-        ))}
-      </ScrollView>
-
-      <ThemedText type="micro" themeColor="textSecondary" style={styles.sectionLabel}>
-        TODO
-      </ThemedText>
-      <View style={styles.chipWrap}>
-        {rest.map((item) => (
-          <Chip key={item.id} label={item.name} active={item.active} onPress={() => toggle(item.id)} />
-        ))}
+        )}
       </View>
     </>
   );
 }
 
-// --- Variant C: one wide bento card (LocationCard's own visual language —
-// solid tint fill standing in for the photo treatment, since there's no
-// Repostería photo asset yet) holding the whole pantry, sectioned
-// alphabetically as a byproduct of sorting rather than a designed taxonomy —
-// testing whether *any* grouping reads better than a flat wrap at ~19
-// chips. Nav entry: icon-only, no label — the minimal-real-estate option,
-// on the theory this is a lower-frequency destination than Mi cocina.
+// --- Variant C: icon-tile grid. A "pick your ingredients" selection screen
+// (the onboarding-tile pattern), not a text-driven list — bigger, deliberate
+// touch targets instead of dense inline tokens. Quick-add is a modal (the
+// existing BottomSheet) via a trailing "+" tile, a genuinely different
+// affordance from A/B's inline patterns.
 function VariantC() {
   const theme = useTheme();
   const { items, toggle, add } = useMockPantry();
-  const [adding, setAdding] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [draft, setDraft] = useState('');
-  const activeCount = items.filter((i) => i.active).length;
 
-  const sections = useMemo(() => {
-    const sorted = [...items].sort((a, b) => a.name.localeCompare(b.name, 'es'));
-    const map = new Map<string, PantryItem[]>();
-    for (const item of sorted) {
-      const letter = item.name[0]?.toUpperCase() ?? '#';
-      if (!map.has(letter)) map.set(letter, []);
-      map.get(letter)!.push(item);
-    }
-    return [...map.entries()];
-  }, [items]);
+  function submitAdd() {
+    if (!draft.trim()) return;
+    add(draft);
+    setDraft('');
+    setSheetOpen(false);
+  }
 
   return (
     <>
-      <MiCocinaHeaderPreview
-        theme={theme}
-        navEntry={
-          <Pressable style={styles.iconOnlyLink} hitSlop={8}>
-            <RollingPin size={16} color={theme.textSecondary} />
-          </Pressable>
-        }
-      />
-      <View style={[styles.bentoCard, { backgroundColor: theme.accentTint, borderColor: theme.border }]}>
-        <View style={styles.titleRow}>
-          <ThemedText type="cardTitle">Repostería</ThemedText>
-          <View style={[styles.countBadge, { backgroundColor: theme.surface }]}>
-            <ThemedText type="small" style={{ color: theme.accentText }}>
-              {activeCount}/{items.length}
-            </ThemedText>
-          </View>
-        </View>
-        {sections.map(([letter, group]) => (
-          <View key={letter} style={styles.alphaSection}>
-            <ThemedText type="micro" themeColor="textSecondary">
-              {letter}
-            </ThemedText>
-            <View style={styles.chipWrap}>
-              {group.map((item) => (
-                <Chip key={item.id} label={item.name} active={item.active} onPress={() => toggle(item.id)} />
-              ))}
-            </View>
-          </View>
-        ))}
-        {adding ? (
-          <View style={[styles.addInput, { borderColor: theme.accent, backgroundColor: theme.surface }]}>
-            <TextInput
-              autoFocus
-              value={draft}
-              onChangeText={setDraft}
-              placeholder="¿Qué agregás?"
-              placeholderTextColor={theme.textSecondary}
-              returnKeyType="done"
-              style={[styles.addInputField, { color: theme.text }]}
-              onSubmitEditing={() => {
-                add(draft);
-                setDraft('');
-                setAdding(false);
-              }}
-            />
-          </View>
-        ) : (
-          <Chip label="Agregar" active={false} dashed accent onPress={() => setAdding(true)} />
-        )}
-      </View>
-    </>
-  );
-}
-
-// --- Variant D: no chrome. Direct response to reacting to A/B/C as "too
-// much surrounding structure, not the pills themselves" — everything beyond
-// the title and the grid itself is gone: no header-context mock, no count
-// badge, no blurb, no pinned row/bento wrapper/alpha sections/segmented
-// toggle. Just the pill grid, generously spaced, as the whole page. Nav
-// entry point is deliberately not re-explored here — settle the pantry
-// surface itself first.
-function VariantD() {
-  const theme = useTheme();
-  const { items, toggle, add } = useMockPantry();
-  const [adding, setAdding] = useState(false);
-  const [draft, setDraft] = useState('');
-  const activeCount = items.filter((i) => i.active).length;
-
-  return (
-    <>
-      <View style={styles.plainHeader}>
-        <ThemedText type="title">Repostería</ThemedText>
-        <ThemedText type="small" themeColor="textSecondary">
-          {activeCount} de {items.length} activos
-        </ThemedText>
-      </View>
-      <View style={styles.plainChipWrap}>
+      <ThemedText type="title">Repostería</ThemedText>
+      <View style={styles.tileGrid}>
         {items.map((item) => (
-          <Chip key={item.id} label={item.name} active={item.active} onPress={() => toggle(item.id)} />
+          <Pressable
+            key={item.id}
+            onPress={() => toggle(item.id)}
+            style={[styles.tile, { borderColor: item.active ? theme.accent : theme.border, backgroundColor: item.active ? theme.accent : theme.surface }]}
+          >
+            <View style={[styles.monogram, { backgroundColor: item.active ? 'rgba(255,255,255,0.22)' : theme.accentTint }]}>
+              <ThemedText type="smallBold" style={{ color: item.active ? '#FFFFFF' : theme.accentText }}>
+                {item.name[0]?.toUpperCase()}
+              </ThemedText>
+            </View>
+            <ThemedText type="small" numberOfLines={2} style={[styles.tileLabel, { color: item.active ? '#FFFFFF' : theme.text }]}>
+              {item.name}
+            </ThemedText>
+          </Pressable>
         ))}
-        {adding ? (
-          <View style={[styles.addInput, { borderColor: theme.accent }]}>
-            <TextInput
-              autoFocus
-              value={draft}
-              onChangeText={setDraft}
-              placeholder="¿Qué agregás?"
-              placeholderTextColor={theme.textSecondary}
-              returnKeyType="done"
-              style={[styles.addInputField, { color: theme.text }]}
-              onSubmitEditing={() => {
-                add(draft);
-                setDraft('');
-                setAdding(false);
-              }}
-            />
-          </View>
-        ) : (
-          <Chip label="Agregar" active={false} dashed accent onPress={() => setAdding(true)} />
-        )}
+        <Pressable onPress={() => setSheetOpen(true)} style={[styles.tile, styles.addTile, { borderColor: theme.accent }]}>
+          <Plus size={20} color={theme.accent} />
+          <ThemedText type="small" style={{ color: theme.accent }}>
+            Agregar
+          </ThemedText>
+        </Pressable>
       </View>
+
+      <BottomSheet
+        visible={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        title="Agregar ingrediente"
+        footer={<PrimaryButton label="Agregar" onPress={submitAdd} disabled={!draft.trim()} />}
+      >
+        <TextInput
+          autoFocus
+          value={draft}
+          onChangeText={setDraft}
+          placeholder="¿Qué agregás?"
+          placeholderTextColor={theme.textSecondary}
+          returnKeyType="done"
+          onSubmitEditing={submitAdd}
+          style={[styles.sheetInput, { color: theme.text, borderColor: theme.border }]}
+        />
+      </BottomSheet>
     </>
   );
 }
 
 const VARIANTS = [
-  { key: 'D', name: 'Solo pills, sin chrome' },
-  { key: 'A', name: 'Flat wrap' },
-  { key: 'B', name: 'Pinned + top quick-add' },
-  { key: 'C', name: 'Bento + alfabético' },
+  { key: 'A', name: 'Lista con check' },
+  { key: 'B', name: 'Buscá y armá' },
+  { key: 'C', name: 'Grilla de fichas' },
 ];
 
 export default function PrototypeReposteria() {
   const { variant: variantParam } = useLocalSearchParams<{ variant?: string }>();
-  const variant = variantParam ?? 'D';
+  const variant = variantParam ?? 'A';
 
   const setVariant = (key: string) => router.setParams({ variant: key });
 
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-          {variant === 'D' && <VariantD />}
+        <View style={styles.scroll}>
           {variant === 'A' && <VariantA />}
           {variant === 'B' && <VariantB />}
           {variant === 'C' && <VariantC />}
-        </ScrollView>
+        </View>
         <FloatingCTA label="Buscar ideas de repostería" onPress={() => {}} />
       </SafeAreaView>
       <PrototypeSwitcher variants={VARIANTS} current={variant} onChange={setVariant} />
@@ -437,116 +324,116 @@ const styles = StyleSheet.create({
   },
   scroll: {
     paddingTop: Spacing.four,
-    paddingBottom: Spacing.six + Spacing.six,
+    paddingBottom: Spacing.six,
     gap: Spacing.three,
+    flex: 1,
   },
-  headerPreview: {
+  searchAnchor: {
+    position: 'relative',
+    zIndex: 10,
+  },
+  searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
     borderRadius: Radius.small,
     borderWidth: 1,
-    borderStyle: 'dashed',
-    padding: Spacing.three,
-    gap: Spacing.two,
-    marginBottom: Spacing.two,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  headerLinks: {
-    flexDirection: 'row',
-    gap: Spacing.three,
-  },
-  savedLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.one,
-  },
-  iconOnlyLink: {
-    padding: Spacing.one,
-  },
-  countBadge: {
-    borderRadius: Radius.pill,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: 2,
-  },
-  blurb: {
-    marginTop: -Spacing.two,
-  },
-  chipWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.two,
-  },
-  addInput: {
-    borderRadius: Radius.pill,
-    borderWidth: 1,
     paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.one + 2,
-    minWidth: 120,
+    paddingVertical: Spacing.two + 2,
   },
-  addInputField: {
-    fontSize: 14,
-    lineHeight: 20,
-    padding: 0,
-  },
-  notes: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-    borderRadius: 999,
-    borderWidth: 1,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-  },
-  notesInput: {
+  searchInput: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 15,
     padding: 0,
   },
-  segmented: {
-    flexDirection: 'row',
-    borderRadius: Radius.pill,
+  dropdown: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    marginTop: Spacing.one,
+    borderRadius: Radius.small,
     borderWidth: 1,
-    padding: 3,
-    alignSelf: 'flex-start',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
   },
-  segment: {
+  dropdownRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.one,
-    borderRadius: Radius.pill,
+    gap: Spacing.two,
     paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.one + 2,
+    paddingVertical: Spacing.two + 2,
   },
-  segmentInactive: {
-    backgroundColor: 'transparent',
+  dropdownEmpty: {
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.three,
+    textAlign: 'center',
   },
-  segmentActiveLabel: {
-    color: '#FFFFFF',
+  listCard: {
+    borderRadius: Radius.small,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two + 2,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.three - 2,
+  },
+  rowDivider: {
+    borderBottomWidth: 1,
+  },
+  rowGrow: {
+    flex: 1,
+  },
+  emptyText: {
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.four,
+    textAlign: 'center',
   },
   sectionLabel: {
     marginTop: -Spacing.one,
   },
-  pinnedRow: {
-    gap: Spacing.two,
-    paddingRight: Spacing.three,
-  },
-  bentoCard: {
-    borderRadius: Radius.card,
-    borderWidth: 1,
-    padding: Spacing.three,
-    gap: Spacing.three,
-  },
-  alphaSection: {
-    gap: Spacing.two,
-  },
-  plainHeader: {
-    gap: Spacing.one,
-  },
-  plainChipWrap: {
+  tileGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: Spacing.three,
+    gap: Spacing.two + 2,
+  },
+  tile: {
+    flexBasis: '30%',
+    flexGrow: 1,
+    aspectRatio: 1,
+    borderRadius: Radius.small + 2,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.two,
+    padding: Spacing.two,
+  },
+  addTile: {
+    borderStyle: 'dashed',
+    backgroundColor: 'transparent',
+  },
+  monogram: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tileLabel: {
+    textAlign: 'center',
+  },
+  sheetInput: {
+    borderRadius: Radius.small,
+    borderWidth: 1,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.three,
+    fontSize: 15,
   },
 });
