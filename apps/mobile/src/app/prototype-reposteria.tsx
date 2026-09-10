@@ -123,7 +123,7 @@ function ItemAvatar({ item, theme }: { item: PantryItem; theme: Theme }) {
       {photoKey ? (
         <Image source={ingredientPhotos[photoKey]} style={styles.avatarPhoto} resizeMode="cover" />
       ) : (
-        <ThemedText type="smallBold" style={{ color: monogramColor }}>
+        <ThemedText type="smallBold" style={[styles.avatarMonogram, { color: monogramColor }]}>
           {item.name[0]?.toUpperCase()}
         </ThemedText>
       )}
@@ -186,7 +186,7 @@ function VariantA() {
             <ThemedText themeColor={item.active ? 'text' : 'textSecondary'} style={styles.rowGrow}>
               {item.name}
             </ThemedText>
-            {item.active ? <CheckCircle size={18} color={theme.accent} /> : <OpenCircle size={18} color={theme.border} />}
+            {item.active ? <CheckCircle size={22} color={theme.accent} /> : <OpenCircle size={22} color={theme.border} />}
           </Pressable>
         ))}
         {filtered.length === 0 && exactMatch && (
@@ -456,9 +456,9 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.two + 2,
+    gap: Spacing.three,
     paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.three - 2,
+    paddingVertical: Spacing.two + 2,
   },
   rowDivider: {
     borderBottomWidth: 1,
@@ -467,10 +467,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   avatar: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    borderWidth: 1,
+    width: 56,
+    height: 56,
+    borderRadius: 14,
+    borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -478,6 +478,10 @@ const styles = StyleSheet.create({
   avatarPhoto: {
     width: '100%',
     height: '100%',
+  },
+  avatarMonogram: {
+    fontSize: 20,
+    lineHeight: 24,
   },
   avatarDim: {
     opacity: 0.55,
