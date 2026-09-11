@@ -17,5 +17,13 @@ export const Item = z.object({
   name: z.string(),
   location: Location,
   active: z.boolean().default(true),
+  // Which pantry(s) an item shows up in — Mi cocina and Repostería are two
+  // views over the same `items` table (see CLAUDE.md-equivalent ticket
+  // "Baking pantry data model"), not two independent lists: a shared item
+  // like huevos just has both flags true, so toggling it in one screen is
+  // reflected in the other. `location` stays required for every item even
+  // though Repostería's own pantry page renders flat, no location grouping.
+  inCocina: z.boolean().default(true),
+  inReposteria: z.boolean().default(false),
 });
 export type Item = z.infer<typeof Item>;

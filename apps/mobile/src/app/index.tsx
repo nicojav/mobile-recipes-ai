@@ -18,7 +18,7 @@ import { FloatingCTA } from '@/components/floating-cta';
 import { Toast } from '@/components/toast';
 import { PrimaryButton } from '@/components/primary-button';
 import { Chip } from '@/components/chip';
-import { Bookmark, CalendarIcon, Pencil } from '@/components/icons';
+import { Bookmark, CalendarIcon, Cookie, Pencil } from '@/components/icons';
 import { Radius, Spacing, MaxContentWidth } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -86,7 +86,7 @@ export default function KitchenScreen() {
   function addItem(location: Location, name: string) {
     const trimmed = name.trim();
     if (!trimmed) return;
-    const newItem: Item = { id: generateId(), name: trimmed, location, active: true };
+    const newItem: Item = { id: generateId(), name: trimmed, location, active: true, inCocina: true, inReposteria: false };
     db.insert(itemsTable).values(newItem).run();
     setItems((prev) => [...prev, newItem]);
     Haptics.selectionAsync().catch(() => {});
@@ -125,18 +125,20 @@ export default function KitchenScreen() {
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.header}>
-          <View style={styles.titleRow}>
-            <ThemedText type="title">{t('kitchen.title')}</ThemedText>
-            <View style={styles.headerLinks}>
-              <Pressable style={styles.savedLink} onPress={() => router.push('/calendar')}>
-                <CalendarIcon size={14} color={theme.text} />
-                <ThemedText type="link">{t('calendar.navLink')}</ThemedText>
-              </Pressable>
-              <Pressable style={styles.savedLink} onPress={() => router.push('/saved')}>
-                <Bookmark size={14} color={theme.text} />
-                <ThemedText type="link">{t('kitchen.viewSaved')}</ThemedText>
-              </Pressable>
-            </View>
+          <ThemedText type="title">{t('kitchen.title')}</ThemedText>
+          <View style={styles.headerLinks}>
+            <Pressable style={styles.savedLink} onPress={() => router.push('/calendar')}>
+              <CalendarIcon size={14} color={theme.text} />
+              <ThemedText type="link">{t('calendar.navLink')}</ThemedText>
+            </Pressable>
+            <Pressable style={styles.savedLink} onPress={() => router.push('/saved')}>
+              <Bookmark size={14} color={theme.text} />
+              <ThemedText type="link">{t('kitchen.viewSaved')}</ThemedText>
+            </Pressable>
+            <Pressable style={styles.savedLink} onPress={() => router.push('/reposteria')}>
+              <Cookie size={14} color={theme.text} />
+              <ThemedText type="link">{t('reposteria.navLink')}</ThemedText>
+            </Pressable>
           </View>
           <View
             style={[
@@ -256,24 +258,24 @@ const styles = StyleSheet.create({
     maxWidth: MaxContentWidth,
   },
   header: {
-    gap: Spacing.three,
+    gap: Spacing.two,
     paddingTop: Spacing.four,
     paddingBottom: Spacing.four,
   },
-  titleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
+  // Its own row below the title rather than squeezed beside it — three links
+  // (Calendario, Guardadas, Repostería) plus "Mi cocina" no longer fit on
+  // one line at phone width. flexWrap is a safety net, not the expected
+  // layout: at phone width this still reads as one row.
   headerLinks: {
     flexDirection: 'row',
-    gap: Spacing.three,
+    flexWrap: 'wrap',
+    columnGap: Spacing.three,
+    rowGap: Spacing.one,
   },
   savedLink: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.one,
-    paddingTop: Spacing.two,
   },
   notes: {
     flexDirection: 'row',

@@ -5,6 +5,8 @@ export const items = sqliteTable("items", {
   name: text("name").notNull(),
   location: text("location").notNull(),
   active: integer("active", { mode: "boolean" }).notNull().default(true),
+  inCocina: integer("in_cocina", { mode: "boolean" }).notNull().default(true),
+  inReposteria: integer("in_reposteria", { mode: "boolean" }).notNull().default(false),
 });
 
 export const savedRecipes = sqliteTable("saved_recipes", {

@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { SuggestRequest, SuggestResponse, parseRetryDelayMs, type CardWithImage, type Item, type Location } from '@mobile-recipes/shared';
 
 import { db } from '@db/client';
@@ -68,13 +68,24 @@ async function postSuggest(body: SuggestRequest, onThrottled?: (delayMs: number)
 // that passes it is the deck's two-phase batch split (2 cards, then 3, for
 // every batch), a Groq streaming workaround. See CLAUDE.md "Decisions
 // already made".
+//
+// `category` picks which pantry feeds the request — Mi cocina and
+// Repostería are two views over the same `items` table (see ticket "Baking
+// pantry data model"), filtered by `inCocina`/`inReposteria` rather than two
+// independent lists.
 export async function fetchSuggestions(
   notes: string,
   exclude: string[],
   count?: number,
   onThrottled?: (delayMs: number) => void,
+  category: SuggestRequest['category'] = 'comida',
 ): Promise<CardWithImage[]> {
-  const active = db.select().from(itemsTable).where(eq(itemsTable.active, true)).all() as Item[];
+  const pantryColumn = category === 'reposteria' ? itemsTable.inReposteria : itemsTable.inCocina;
+  const active = db
+    .select()
+    .from(itemsTable)
+    .where(and(eq(itemsTable.active, true), eq(pantryColumn, true)))
+    .all() as Item[];
 
   const body = SuggestRequest.parse({
     v: 1,
@@ -86,6 +97,7 @@ export async function fetchSuggestions(
     notes: notes.trim() || undefined,
     exclude: exclude.length > 0 ? exclude : undefined,
     count,
+    category,
   });
 
   const json = await postSuggest(body, onThrottled);

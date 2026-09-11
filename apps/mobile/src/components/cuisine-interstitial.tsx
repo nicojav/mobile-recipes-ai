@@ -43,6 +43,7 @@ const COUNTRIES: Country[] = [
   // with even worse cross-platform support than the bug just fixed above.
   // United Kingdom's flag stands in.
   { name: 'Inglaterra', flag: '🇬🇧' },
+  { name: 'Ucrania', flag: '🇺🇦' },
 ];
 
 // Filtered rather than trusted-by-convention — COUNTRIES is a plain list

@@ -14,9 +14,12 @@ import { ThemedView } from '@/components/themed-view';
 import { BackButton } from '@/components/back-button';
 import { Badge } from '@/components/badge';
 import { CalorieBadge } from '@/components/calorie-badge';
+import { Chip } from '@/components/chip';
 import { Bowl } from '@/components/icons';
 import { Radius, Spacing, MaxContentWidth } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+
+type Category = NonNullable<Card['category']>;
 
 type SavedRow = {
   id: string;
@@ -26,6 +29,9 @@ type SavedRow = {
   effort: Card['effort'];
   calories?: number;
   imageUrl: string;
+  // Absent on any row saved before this field existed ⇒ "comida" — same
+  // tolerance StoredCard's own type documents for `calories`.
+  category: Category;
 };
 
 function loadSaved(): SavedRow[] {
@@ -40,6 +46,7 @@ function loadSaved(): SavedRow[] {
       effort: card.effort,
       calories: card.calories,
       imageUrl: card.imageUrl,
+      category: card.category ?? 'comida',
     };
   });
 }
@@ -48,11 +55,16 @@ export default function SavedScreen() {
   const { t } = useTranslation();
   const theme = useTheme();
   const [rows, setRows] = useState<SavedRow[]>([]);
+  // Always opens on Comidas — not persisted across visits, mirrors
+  // Calendario's "the week is deliberately not persisted" precedent.
+  const [tab, setTab] = useState<Category>('comida');
 
   useEffect(() => {
     initDb();
     setRows(loadSaved());
   }, []);
+
+  const visibleRows = rows.filter((row) => row.category === tab);
 
   return (
     <ThemedView style={styles.container}>
@@ -64,13 +76,18 @@ export default function SavedScreen() {
           {t('saved.title')}
         </ThemedText>
 
-        {rows.length === 0 ? (
+        <View style={styles.tabs}>
+          <Chip label={t('saved.tabComida')} active={tab === 'comida'} onPress={() => setTab('comida')} />
+          <Chip label={t('saved.tabReposteria')} active={tab === 'reposteria'} onPress={() => setTab('reposteria')} />
+        </View>
+
+        {visibleRows.length === 0 ? (
           <ThemedText type="default" themeColor="textSecondary" style={styles.empty}>
-            {t('saved.empty')}
+            {t(tab === 'reposteria' ? 'saved.emptyReposteria' : 'saved.empty')}
           </ThemedText>
         ) : (
           <FlatList
-            data={rows}
+            data={visibleRows}
             keyExtractor={(row) => row.id}
             contentContainerStyle={styles.list}
             renderItem={({ item }) => (
@@ -117,6 +134,11 @@ const styles = StyleSheet.create({
   },
   title: {
     paddingTop: Spacing.two,
+    paddingBottom: Spacing.three,
+  },
+  tabs: {
+    flexDirection: 'row',
+    gap: Spacing.two,
     paddingBottom: Spacing.three,
   },
   empty: {

@@ -17,7 +17,15 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { Image } from 'expo-image';
-import { CARD_COUNT, FIRST_PAINT_COUNT, type CardWithImage as Card } from '@mobile-recipes/shared';
+import { CARD_COUNT, FIRST_PAINT_COUNT, type CardWithImage, type SuggestRequest } from '@mobile-recipes/shared';
+
+// The Worker never returns `category` on a card (it's a request-only field —
+// see ticket "Worker prompt & Card semantics for Repostería"), so the screen
+// that requested it stamps the value on in memory, immediately after the
+// response is parsed. It then rides along through router params and into
+// whatever gets saved, with no further plumbing (StoredCard already types
+// this field as optional).
+type Card = CardWithImage & { category: SuggestRequest['category'] };
 
 import { fetchSuggestions } from '@lib/api';
 import { ThemedText } from '@/components/themed-text';
@@ -43,8 +51,11 @@ type DeckAction = 'back' | 'next';
 type SwipeCardHandle = { dismiss: (action: DeckAction) => void };
 
 export default function DeckScreen() {
-  const { notes: notesParam } = useLocalSearchParams<{ notes?: string }>();
+  const { notes: notesParam, category: categoryParam } = useLocalSearchParams<{ notes?: string; category?: string }>();
   const notes = notesParam ?? '';
+  // Captured once at mount, same as `notes` — which pantry this deck instance
+  // is feeding never changes mid-screen.
+  const category = useRef<SuggestRequest['category']>(categoryParam === 'reposteria' ? 'reposteria' : 'comida').current;
   const { t } = useTranslation();
 
   const [status, setStatus] = useState<Status>('loading');
@@ -103,7 +114,7 @@ export default function DeckScreen() {
     // `notes` channel without touching the request schema.
     async (count?: number, notesOverride?: string): Promise<Card[] | null> => {
       try {
-        const next = await fetchSuggestions(notesOverride ?? notes, shownTitles.current, count, () => setThrottled(true));
+        const next = await fetchSuggestions(notesOverride ?? notes, shownTitles.current, count, () => setThrottled(true), category);
         setThrottled(false);
         shownTitles.current = [...shownTitles.current, ...next.map((c) => c.title)];
         // Fire all image requests concurrently as soon as the batch is
@@ -112,13 +123,13 @@ export default function DeckScreen() {
         // the <Image> in SwipeCard loads it lazily instead — see CLAUDE.md's
         // Image pipeline section ("never block the card on the image").
         Image.prefetch(next.map((card) => card.imageUrl)).catch(() => {});
-        return next;
+        return next.map((card) => ({ ...card, category }));
       } catch {
         setThrottled(false);
         return null;
       }
     },
-    [notes],
+    [notes, category],
   );
 
   // Runs once phase 2 of a batch (the remaining CARD_COUNT -

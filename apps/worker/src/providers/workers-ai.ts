@@ -34,7 +34,7 @@ class WorkersAiProvider extends BaseCardProvider {
     try {
       return await env.AI.run(MODEL, {
         messages: [
-          { role: "system", content: buildSystemPrompt(count) },
+          { role: "system", content: buildSystemPrompt(count, request.category) },
           { role: "user", content: buildUserPrompt(request, count) },
         ],
         response_format: {

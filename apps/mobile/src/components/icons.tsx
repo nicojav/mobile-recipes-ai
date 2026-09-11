@@ -124,6 +124,22 @@ export function Bowl({ size, color }: IconProps) {
   );
 }
 
+// Mi cocina's nav link to Repostería — a circle outline with five scattered
+// chip dots. Won over RollingPin (read as a barbell at nav size), Cake,
+// Croissant, and Whisk — see the "Repostería nav entry point" ticket.
+export function Cookie({ size, color }: IconProps) {
+  return (
+    <Icon size={size}>
+      <SvgCircle cx="12" cy="12" r="8.5" stroke={color} strokeWidth={STROKE_WIDTH} />
+      <SvgCircle cx="9.5" cy="9" r="1" fill={color} />
+      <SvgCircle cx="14.5" cy="8.5" r="1" fill={color} />
+      <SvgCircle cx="15.5" cy="13.5" r="1" fill={color} />
+      <SvgCircle cx="10.5" cy="15" r="1" fill={color} />
+      <SvgCircle cx="12.5" cy="11.5" r="1" fill={color} />
+    </Icon>
+  );
+}
+
 // App mark (assets/logo.svg) — Bowl's own arc and rim plus a lid, closed. Kept
 // here as source of truth for the mark's geometry, same as every other icon
 // in this file; not used by any screen yet.
