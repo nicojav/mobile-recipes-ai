@@ -28,6 +28,14 @@ export const SuggestRequest = z.object({
   // the Worker; never trust a client number without re-checking it
   // server-side.
   count: z.number().int().min(1).max(CARD_COUNT).optional(),
+  // Deterministic prompt routing — unlike the cuisine interstitial or
+  // Calendario's meal-hint (both additive nudges layered on one system
+  // prompt, correctly done via `notes`), baking needs a genuinely different
+  // system prompt (vocabulary, effort semantics, imagePrompt framing), so
+  // the Worker branches on this instead of relying on the model to
+  // reinterpret a `notes` sentence. Doesn't touch the Card response schema —
+  // a request-side addition only.
+  category: z.enum(["comida", "reposteria"]).optional().default("comida"),
 });
 export type SuggestRequest = z.infer<typeof SuggestRequest>;
 
@@ -77,7 +85,18 @@ export type CardWithImage = z.infer<typeof CardWithImage>;
 // The read path parses these without validating (see apps/mobile/src/app/saved.tsx),
 // so anything added to Card after the first release has to be optional here or the
 // compiler will vouch for a field that isn't there.
-export type StoredCard = Omit<CardWithImage, "calories"> & { calories?: number };
+//
+// `category` is a client-only enrichment, same pattern as `calories`: the
+// Worker never returns it on a card (it's a SuggestRequest field, not part
+// of Card — see ticket "Worker prompt & Card semantics for Repostería"), so
+// whichever screen made the request stamps it onto the card in memory right
+// after parsing the response, before it's threaded through Deck → Detail →
+// save. Absent on every row saved before this field existed ⇒ treated as
+// "comida" at read time (see apps/mobile/src/app/saved.tsx).
+export type StoredCard = Omit<CardWithImage, "calories"> & {
+  calories?: number;
+  category?: SuggestRequest["category"];
+};
 
 export const SuggestResponse = z.object({
   v: z.literal(1),

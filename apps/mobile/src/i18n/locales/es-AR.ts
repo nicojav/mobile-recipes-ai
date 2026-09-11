@@ -78,7 +78,18 @@ export const esAR = {
   saved: {
     back: "Volver",
     title: "Guardadas",
+    tabComida: "Comidas",
+    tabReposteria: "Repostería",
     empty: "Todavía no guardaste ninguna receta.",
+    emptyReposteria: "Todavía no guardaste ninguna receta dulce.",
+  },
+  reposteria: {
+    navLink: "Repostería",
+    title: "Repostería",
+    searchPlaceholder: "Buscá o agregá un ingrediente",
+    addPrefix: 'Agregar "{{text}}"',
+    empty: "Sin resultados.",
+    findIdeas: "Buscar ideas · {{count}}",
   },
   calendar: {
     navLink: "Calendario",

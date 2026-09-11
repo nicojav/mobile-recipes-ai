@@ -89,7 +89,7 @@ class GeminiProvider extends BaseCardProvider {
         "x-goog-api-key": env.GEMINI_KEY,
       },
       body: JSON.stringify({
-        systemInstruction: { parts: [{ text: buildSystemPrompt(count) }] },
+        systemInstruction: { parts: [{ text: buildSystemPrompt(count, request.category) }] },
         contents: [{ role: "user", parts: [{ text: buildUserPrompt(request, count) }] }],
         generationConfig: {
           responseMimeType: "application/json",

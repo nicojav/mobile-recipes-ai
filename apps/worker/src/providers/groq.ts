@@ -47,7 +47,7 @@ class GroqProvider extends BaseCardProvider {
       body: JSON.stringify({
         model: MODEL,
         messages: [
-          { role: "system", content: buildSystemPrompt(count) },
+          { role: "system", content: buildSystemPrompt(count, request.category) },
           { role: "user", content: buildUserPrompt(request, count) },
         ],
         // gpt-oss defaults to reasoning_effort "medium", which burns a large
