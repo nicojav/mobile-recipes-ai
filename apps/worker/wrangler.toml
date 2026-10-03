@@ -10,6 +10,18 @@ binding = "AI"
 binding = "RECIPE_IMAGES"
 bucket_name = "mobile-recipes-images"
 
+# Fallback-only corpus of previously-generated cards (apps/worker/src/corpus.ts).
+# Create it once with `npx wrangler d1 create potlucky-corpus`, paste the
+# returned id below, then apply the schema:
+#   npx wrangler d1 migrations apply potlucky-corpus --remote   (deployed)
+#   npx wrangler d1 migrations apply potlucky-corpus --local    (wrangler dev)
+# `wrangler dev` uses a local SQLite file, so the placeholder id is fine there.
+[[d1_databases]]
+binding = "CORPUS_DB"
+database_name = "potlucky-corpus"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
 # Workers-native rate limiting API (a binding, not the zone-level WAF Rate
 # Limiting Rules product) — works on a workers.dev deployment with no custom
 # domain/zone required, and is atomic under concurrent requests. Caps

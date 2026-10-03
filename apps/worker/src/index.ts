@@ -1,4 +1,5 @@
-import { SuggestRequest } from "@mobile-recipes/shared";
+import { SuggestRequest, type Card, type CardWithImage } from "@mobile-recipes/shared";
+import { cardsFromCorpus, saveToCorpus } from "./corpus";
 import { activeProvider, ProviderError } from "./providers";
 import { ensureImage, ImageGenerationSkipped, imageKeyFor, imageUsageSnapshot } from "./images";
 
@@ -49,29 +50,20 @@ async function handleSuggest(request: Request, env: Env, ctx: ExecutionContext):
     return jsonError(400, "request does not match SuggestRequest", parsedRequest.error.flatten());
   }
 
+  const suggestRequest = parsedRequest.data;
+  const origin = new URL(request.url).origin;
+
   try {
-    const cards = await activeProvider.generateCards(parsedRequest.data, env);
-    const origin = new URL(request.url).origin;
-    // Never await FLUX on the response path — the card itself (title,
-    // badges, missing-ingredient flag) must render immediately. The URL is
-    // built synchronously; generation-or-cache-hit happens in ensureImage,
-    // kicked off below via ctx.waitUntil so it starts without blocking this
-    // response, and again (deduped) whenever the client actually requests
-    // the URL in handleImage. See CLAUDE.md's Image pipeline section.
-    const cardsWithImages = cards.map((card) => {
-      const key = imageKeyFor(card.dishKey);
-      ctx.waitUntil(
-        ensureImage(env, key, card.imagePrompt).catch(() => {
-          // A failed early warm just means handleImage generates it fresh
-          // when the client actually requests the URL — never fatal here.
-        }),
-      );
-      return {
-        ...card,
-        imageUrl: `${origin}/img/${key}?prompt=${encodeURIComponent(card.imagePrompt)}`,
-      };
-    });
-    return Response.json({ v: 1, cards: cardsWithImages });
+    const cards = await activeProvider.generateCards(suggestRequest, env);
+    // Record what was actually generated for the fallback corpus. Off the
+    // response path and never fatal — a failed write just means one dish
+    // doesn't get remembered. See corpus.ts.
+    ctx.waitUntil(
+      saveToCorpus(env, cards, suggestRequest.category).catch((corpusErr) => {
+        console.error("[corpus] save failed", corpusErr);
+      }),
+    );
+    return Response.json({ v: 1, cards: attachImages(env, ctx, origin, cards), source: "live" });
   } catch (err) {
     if (err instanceof ProviderError) {
       // Logged unconditionally — without this, wrangler's console only shows
@@ -80,6 +72,28 @@ async function handleSuggest(request: Request, env: Env, ctx: ExecutionContext):
       // ceilings note on Groq's 8,000 tokens/min cap being the likely cause
       // of a fast 429 here.
       console.error(`[${err.provider}] status=${err.status ?? "?"} retryAfter=${err.retryAfter ?? "none"}`, err.detail);
+
+      // Live generation is degraded — serve previously-generated dishes
+      // instead, but only for a genuine upstream outage (429 or 5xx). A
+      // validation/parse failure has no status and stays a plain 502, since
+      // the client's own retry usually fixes it. Cuisine picks never fall
+      // back: the corpus has no cuisine tag, so it would answer "Japón" with
+      // Argentine dishes. If nothing in the corpus clears the match floor we
+      // fall through to the original error, so the client's backoff still
+      // applies. See corpus.ts.
+      const isOutage = err.status === 429 || (err.status !== undefined && err.status >= 500);
+      if (isOutage && suggestRequest.cuisine === undefined) {
+        try {
+          const cards = await cardsFromCorpus(env, suggestRequest);
+          if (cards.length > 0) {
+            console.warn(`[corpus] served ${cards.length} card(s) after ${err.provider} status=${err.status}`);
+            return Response.json({ v: 1, cards: attachImages(env, ctx, origin, cards), source: "corpus" });
+          }
+        } catch (corpusErr) {
+          console.error("[corpus] fallback failed", corpusErr);
+        }
+      }
+
       if (err.status === 429) {
         return jsonError(429, `${err.provider}: rate limited`, err.detail, err.retryAfter ? { "retry-after": err.retryAfter } : undefined);
       }
@@ -87,6 +101,30 @@ async function handleSuggest(request: Request, env: Env, ctx: ExecutionContext):
     }
     throw err;
   }
+}
+
+// Never await FLUX on the response path — the card itself (title, badges,
+// missing-ingredient flag) must render immediately. The URL is built
+// synchronously; generation-or-cache-hit happens in ensureImage, kicked off
+// via ctx.waitUntil so it starts without blocking this response, and again
+// (deduped) whenever the client actually requests the URL in handleImage.
+// See CLAUDE.md's Image pipeline section. Shared by live and corpus-served
+// cards — a corpus card's image is usually already in R2, making the warm a
+// cheap cache hit.
+function attachImages(env: Env, ctx: ExecutionContext, origin: string, cards: Card[]): CardWithImage[] {
+  return cards.map((card) => {
+    const key = imageKeyFor(card.dishKey);
+    ctx.waitUntil(
+      ensureImage(env, key, card.imagePrompt).catch(() => {
+        // A failed early warm just means handleImage generates it fresh
+        // when the client actually requests the URL — never fatal here.
+      }),
+    );
+    return {
+      ...card,
+      imageUrl: `${origin}/img/${key}?prompt=${encodeURIComponent(card.imagePrompt)}`,
+    };
+  });
 }
 
 const IMAGE_CACHE_CONTROL = "public, max-age=31536000, immutable";

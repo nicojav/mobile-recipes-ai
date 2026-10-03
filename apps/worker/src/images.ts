@@ -7,14 +7,17 @@ import { ImageQuotaExceededError, imageProviders, type ImageProvider } from "./i
 // sampling rarely reproduces the same title text twice. "dishKey" is the
 // field the model is instructed to hold stable across calls for the same
 // dish (see prompt.ts); "title" stays free to vary.
-export function imageKeyFor(dishKey: string): string {
-  const slug = dishKey
+export function dishSlug(dishKey: string): string {
+  return dishKey
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "");
-  return `${slug}.jpg`;
+}
+
+export function imageKeyFor(dishKey: string): string {
+  return `${dishSlug(dishKey)}.jpg`;
 }
 
 // In-flight generation dedupe, keyed by R2 key. Without this, the Worker's
