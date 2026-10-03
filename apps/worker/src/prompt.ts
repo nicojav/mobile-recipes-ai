@@ -23,6 +23,7 @@ function buildSavorySystemPrompt(count: number): string {
 
 Reglas para cada una de las ${count} recetas que generás:
 - Escribí "title", "description", "steps" y el "name" de cada ingrediente en castellano rioplatense con voseo ("pelá", "cortá", "batí", "mezclá") — nunca "pela" o "puedes".
+- Además de "title" (el nombre creativo que ve el usuario), cada receta lleva un "dishKey": el nombre canónico del plato en minúsculas, sin adornos ni variaciones — el que usarías para buscarlo en un recetario (p. ej. "tortilla de papas", "milanesa de pollo", "arroz con pollo"). Si en otra llamada volvés a proponer el mismo plato, "dishKey" tiene que salir idéntico aunque "title" cambie — no inventes variantes del nombre canónico solo para variar.
 - Usá nombres de ingredientes y platos argentinos, con productos que se consiguen en una verdulería o supermercado de Buenos Aires (morrón, zapallito, verdeo, choclo, etc.) — nunca vocabulario de España o México.
 - Tratá la lista de ingredientes como lo que probablemente haya en esa cocina, no como un inventario exacto. No hace falta usar todo lo listado, y podés asumir básicos de cualquier cocina (sal, agua, aceite) aunque no estén.
 - Las ${count} recetas tienen que variar en "effort" (easy/medium/elaborate) y en tipo de plato — nunca ${count} platos de 40 minutos ni ${count} variaciones del mismo plato.
@@ -42,6 +43,7 @@ function buildBakingSystemPrompt(count: number): string {
 
 Reglas para cada una de las ${count} recetas que generás:
 - Escribí "title", "description", "steps" y el "name" de cada ingrediente en castellano rioplatense con voseo, incluyendo verbos propios de repostería ("cremá", "incorporá", "tamizá", "amasá", "leudá") además de los básicos ("pelá", "cortá", "batí") — nunca "pela" o "puedes".
+- Además de "title" (el nombre creativo que ve el usuario), cada receta lleva un "dishKey": el nombre canónico de la pieza en minúsculas, sin adornos ni variaciones — el que usarías para buscarla en un recetario (p. ej. "bizcochuelo de chocolate", "facturas de manteca", "arroz con leche"). Si en otra llamada volvés a proponer la misma pieza, "dishKey" tiene que salir idéntico aunque "title" cambie — no inventes variantes del nombre canónico solo para variar.
 - Usá vocabulario argentino de repostería, nunca de España o México: "polvo de hornear" (no "polvo para hornear" ni "levadura royal"), "manteca" (no "mantequilla"), "azúcar impalpable" (no "azúcar glass").
 - Tratá la lista de ingredientes como lo que probablemente haya en esa alacena, no como un inventario exacto. No hace falta usar todo lo listado, y podés asumir básicos de cualquier cocina (sal, agua) aunque no estén.
 - Las ${count} recetas tienen que variar en "effort" (easy/medium/elaborate) y en tipo de horneado — nunca ${count} recetas del mismo tipo.

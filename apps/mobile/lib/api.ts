@@ -79,6 +79,10 @@ export async function fetchSuggestions(
   count?: number,
   onThrottled?: (delayMs: number) => void,
   category: SuggestRequest['category'] = 'comida',
+  // Set only by a cuisine-interstitial country pick, alongside the hint
+  // already in `notes`. It tells the Worker not to answer with its stored-
+  // recipe fallback (which has no cuisine tag) if live generation is down.
+  cuisine?: string,
 ): Promise<CardWithImage[]> {
   const pantryColumn = category === 'reposteria' ? itemsTable.inReposteria : itemsTable.inCocina;
   const active = db
@@ -98,6 +102,7 @@ export async function fetchSuggestions(
     exclude: exclude.length > 0 ? exclude : undefined,
     count,
     category,
+    cuisine,
   });
 
   const json = await postSuggest(body, onThrottled);

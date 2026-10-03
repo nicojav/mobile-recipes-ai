@@ -36,6 +36,13 @@ export const SuggestRequest = z.object({
   // reinterpret a `notes` sentence. Doesn't touch the Card response schema —
   // a request-side addition only.
   category: z.enum(["comida", "reposteria"]).optional().default("comida"),
+  // The country the user picked on the cuisine interstitial, sent *alongside*
+  // the same hint already stuffed into `notes` (the prompt is unchanged). It
+  // exists only so the Worker can tell a cuisine pick apart without sniffing
+  // Spanish copy: the stored-recipe corpus has no cuisine tag, so serving it
+  // for a "Japón" request would hand back Argentine dishes the user
+  // explicitly asked not to see. Set ⇒ the corpus fallback is skipped.
+  cuisine: z.string().optional(),
 });
 export type SuggestRequest = z.infer<typeof SuggestRequest>;
 
@@ -54,6 +61,13 @@ export type Ingredient = z.infer<typeof Ingredient>;
 // output — one source of truth for the card shape on both sides.
 export const Card = z.object({
   title: z.string(),
+  // A canonical, lowercase dish name the model keeps stable across calls for
+  // the same dish concept, even as "title" varies creatively. The Worker
+  // slugs this (not "title") for the R2 image cache key — see
+  // apps/worker/src/images.ts's imageKeyFor and CLAUDE.md's Image pipeline
+  // section (ADR 0002): Groq's non-deterministic sampling made slugify(title)
+  // a near-100% cache miss even for the exact same dish.
+  dishKey: z.string(),
   description: z.string(),
   minutes: z.number(),
   effort: Effort,
@@ -93,9 +107,13 @@ export type CardWithImage = z.infer<typeof CardWithImage>;
 // after parsing the response, before it's threaded through Deck → Detail →
 // save. Absent on every row saved before this field existed ⇒ treated as
 // "comida" at read time (see apps/mobile/src/app/saved.tsx).
-export type StoredCard = Omit<CardWithImage, "calories"> & {
+export type StoredCard = Omit<CardWithImage, "calories" | "dishKey"> & {
   calories?: number;
   category?: SuggestRequest["category"];
+  // Added after the first release (ADR 0002) — same back-compat treatment as
+  // "calories" above. Rows saved before this field existed have no
+  // "dishKey" in their stored JSON.
+  dishKey?: string;
 };
 
 export const SuggestResponse = z.object({
@@ -104,5 +122,10 @@ export const SuggestResponse = z.object({
   // SuggestRequest, and the two-call batch split under Prefetching in
   // CLAUDE.md).
   cards: z.array(CardWithImage).min(1).max(CARD_COUNT),
+  // Where these cards came from. "corpus" means live generation was degraded
+  // (Groq 429/5xx) and the Worker served previously-generated dishes from D1
+  // instead. Nothing in the app reads it — it's for logs and the harness, not
+  // UI. Absent ⇒ "live".
+  source: z.enum(["live", "corpus"]).optional(),
 });
 export type SuggestResponse = z.infer<typeof SuggestResponse>;

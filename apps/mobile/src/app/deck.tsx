@@ -120,14 +120,19 @@ export default function DeckScreen() {
   // a prop to CuisineInterstitial), and a ref's `.current` can't be read
   // during render under this project's React Compiler lint rules.
   const [lastCuisineCountry, setLastCuisineCountry] = useState<Country | null>(null);
+  // The country behind activeNotesOverride, kept for the same reason — a retry
+  // must resend it, or a country batch's retry could be answered from the
+  // Worker's Argentine-only stored-recipe fallback.
+  const activeCuisine = useRef<string | undefined>(undefined);
 
   const fetchBatch = useCallback(
     // notesOverride: escape hatch for the cuisine interstitial below — lets
     // a "probá suerte" pick stuff a country hint into the same free-text
-    // `notes` channel without touching the request schema.
-    async (count?: number, notesOverride?: string): Promise<Card[] | null> => {
+    // `notes` channel. `cuisine` rides alongside it purely so the Worker can
+    // tell a cuisine pick apart without sniffing that copy.
+    async (count?: number, notesOverride?: string, cuisine?: string): Promise<Card[] | null> => {
       try {
-        const next = await fetchSuggestions(notesOverride ?? notes, shownTitles.current, count, () => setThrottled(true), category);
+        const next = await fetchSuggestions(notesOverride ?? notes, shownTitles.current, count, () => setThrottled(true), category, cuisine);
         setThrottled(false);
         shownTitles.current = [...shownTitles.current, ...next.map((c) => c.title)];
         // Fire all image requests concurrently as soon as the batch is
@@ -185,12 +190,13 @@ export default function DeckScreen() {
   // notesOverride is captured by both calls' closures, so phase 2 of a
   // country batch stays in the same cuisine as phase 1 automatically.
   const startBatch = useCallback(
-    (notesOverride?: string) => {
+    (notesOverride?: string, cuisine?: string) => {
       if (isFetchingNext.current || batchTail.current) return;
       activeNotesOverride.current = notesOverride;
+      activeCuisine.current = cuisine;
       isFetchingNext.current = true;
       setStatus('loading');
-      fetchBatch(FIRST_PAINT_COUNT, notesOverride).then((first) => {
+      fetchBatch(FIRST_PAINT_COUNT, notesOverride, cuisine).then((first) => {
         isFetchingNext.current = false;
         if (!first) {
           setStatus('error');
@@ -200,7 +206,7 @@ export default function DeckScreen() {
         setIndex(0);
         setStatus('ready');
         setAwaitingBatchTail(true);
-        batchTail.current = fetchBatch(CARD_COUNT - FIRST_PAINT_COUNT, notesOverride).then(handleTailSettled);
+        batchTail.current = fetchBatch(CARD_COUNT - FIRST_PAINT_COUNT, notesOverride, cuisine).then(handleTailSettled);
       });
     },
     [fetchBatch, handleTailSettled],
@@ -215,7 +221,7 @@ export default function DeckScreen() {
 
   // Retries whatever batch just failed, in the same cuisine it failed in —
   // see activeNotesOverride's own comment above for why that ref exists.
-  const retry = useCallback(() => startBatch(activeNotesOverride.current), [startBatch]);
+  const retry = useCallback(() => startBatch(activeNotesOverride.current, activeCuisine.current), [startBatch]);
 
   // Batch end stops at 'choosing' instead of resolving straight through —
   // see the cuisine interstitial below. "Seguí en Argentina" always means
@@ -240,7 +246,7 @@ export default function DeckScreen() {
     (country: Country) => {
       const hint = `${notes} Che, tirame algo de cocina ${country.name} para variar hoy.`.trim();
       setLastCuisineCountry(country); // see the state's own comment above.
-      startBatch(hint);
+      startBatch(hint, country.name);
     },
     [notes, startBatch],
   );

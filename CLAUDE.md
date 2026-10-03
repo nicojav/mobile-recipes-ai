@@ -71,7 +71,9 @@ In:
 
 Explicitly out — do not build these, do not leave hooks for them:
 
-- User accounts, auth, backend database, sync
+- User accounts, auth, sync, and any backend storage of *user* data. The one
+  deliberate exception is a content-only D1 recipe corpus (see "Decisions
+  already made") — generated dishes, never kitchens or users
 - Nutrition data of any kind, beyond the single per-serving calorie estimate
   on each card (added post-Phase-1, see "Decisions already made") — no
   macros, no daily targets, no tracking over time
@@ -122,7 +124,9 @@ LLM provider (structured JSON) — swappable, see below
 ```
 
 The app holds all state locally and works offline except when requesting
-suggestions. The Worker is stateless — every request carries its own context.
+suggestions. The Worker holds no per-user state — every request carries its
+own context. Its only persistent storage is content: the R2 image cache and
+the D1 recipe corpus (fallback-only, see "Decisions already made").
 
 **The LLM call goes through a `CardProvider` interface**
 (`apps/worker/src/providers/`), not a hardcoded Gemini call. `index.ts` only
@@ -310,7 +314,7 @@ Cards without images fail the core experience. This is a required feature.
 **Generate per dish, not per card.** Recipes repeat constantly.
 
 ```
-key = slugify(title)           →  tortilla-de-papa-con-verdeo.jpg
+key = slugify(dishKey)         →  tortilla-de-papa-con-verdeo.jpg
 R2 hit  → return URL immediately
 R2 miss → FLUX.1 schnell (1024×1024, no size param — see Free tier ceilings)
         → store in R2 as JPEG → return URL
@@ -322,17 +326,17 @@ card's `imageUrl` (a `GET /img/<key>?prompt=<imagePrompt>` URL) synchronously
 client actually requests that URL, which is what lets the card render
 immediately regardless of whether its image is cached yet.
 
-**This does not currently hold in practice.** The key is `slugify(title)`,
-and Groq's active provider runs at default (non-deterministic) sampling, so
-the same kitchen produces a different `title` on separate calls, hence a
-different R2 key, hence a cache miss — not just on first generation, but
-nearly every time. See `plans/adr/0001-dev-image-generation-toggle.md` for
-the root-cause writeup (it surfaced first as dev-quota burn, but the same
-mechanism applies to real usage) and
-`plans/adr/0002-validate-before-monetizing.md` for the fix: a stable
-`dishKey` field the model emits alongside the creative `title`, slugged
-instead of it, so cache hits actually converge toward zero generation
-without giving up the variety a non-deterministic `title` provides.
+**The key is `dishKey`, not `title`, on purpose.** Groq runs at default
+(non-deterministic) sampling, so the same kitchen produces a different
+`title` on separate calls — keyed on `title`, nearly every request was an R2
+miss. `dishKey` is a canonical lowercase dish name the model holds stable
+across calls while `title` stays free to vary, so cache hits converge without
+giving up batch-to-batch variety. Verified live against Groq: zero `title`
+overlap across two identical-kitchen calls, `dishKey` matched for every
+recurring dish. See `plans/adr/0001-dev-image-generation-toggle.md` (root
+cause) and `plans/adr/0002-validate-before-monetizing.md` (the decision).
+Cards saved before the field existed have no `dishKey` (`StoredCard` marks it
+optional).
 
 **Why `imagePrompt` must be English and descriptive:** image models are trained on
 English food photography. "tortilla de papa" risks returning a Mexican flatbread.
@@ -617,6 +621,35 @@ Score each batch of five on:
     entirely would visibly shrink the pool after a few spins and eventually
     make a country "unspinnable." Only applies to the roulette's own random
     pick, never to a country tapped directly once the picker unlocks.
+- **No second image provider.** Re-checked on 2026-09-14 after real quota
+  pain, and nothing free clears both the $0 bar and 5 concurrent images per
+  batch: Pollinations now paywalls FLUX anonymously (its one free model drops
+  4 of 5 concurrent calls), Hugging Face gives ~30 images/*month*, and
+  fal.ai, Together and Google's image models have no free tier. Railway's
+  Hobby plan is CPU-only: serverless fits the $5 credit but runs an
+  estimated 5–30s/image (unbenchmarked) at lower quality than FLUX, and
+  always-on is ~$120/mo. The leverage was the `dishKey` cache fix, not a
+  backup source. Image generation does go through an `ImageProvider`
+  interface (`apps/worker/src/image-providers/`, mirrors `CardProvider`)
+  with Workers AI as the only entry, so a second source is a one-line
+  append if quota ever binds again. Exhaustion is tracked per provider until
+  the next UTC midnight, in memory per isolate; all providers exhausted
+  stays `404` + placeholder, because a wrong-dish stock image is worse than
+  none. Full findings with sources are on the `research/image-gen-fallback-apis`
+  and `research/railway-image-gen` branches (`plans/research/`).
+- **D1 recipe corpus, fallback-only.** Every card the LLM generates is
+  upserted into a D1 table (`corpus_cards`, keyed by `dish_key` + category);
+  when Groq returns a 429 or 5xx, `/suggest` serves matching stored cards
+  instead of failing (ingredient-overlap match, `have` recomputed per
+  request). It is **never** served on a healthy call and is skipped when a
+  cuisine is requested — so "same kitchen on Tuesday and Wednesday should
+  give different ideas" still holds on every normal day. Using stored
+  recipes to cut everyday LLM/image cost (the SuperCook-style static
+  database from ADR 0002) was deliberately *not* decided here: it would
+  reopen that freshness rule and needs its own discussion. It lives in D1,
+  not on-device SQLite, because it's shared content like the R2 image cache
+  (not per-user state), and server-side matching can be tuned without an
+  APK release.
 - The app is named **Potlucky**, English, deliberately — even though testing
   is Argentina-only right now and the UI is `es-AR`. A US/English release is
   planned later, and "potluck" already means, in English, a meal made from
