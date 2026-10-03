@@ -65,7 +65,7 @@ sequenceDiagram
     W->>P: activeProvider.generateCards(...)
     P->>P: build prompt server-side (prompt.ts)
     P->>LLM: structured JSON request\n(schema derived from Card, packages/shared)
-    LLM-->>P: 5 cards (title, steps, have/missing, calories, imagePrompt, ...)
+    LLM-->>P: 5 cards (title, dishKey, steps, have/missing, calories, imagePrompt, ...)
     P-->>W: validated cards
     W-->>App: SuggestResponse\n(each card's imageUrl points at /img/:key, not fetched yet)
 
@@ -77,7 +77,7 @@ sequenceDiagram
     else cache miss
         W->>FLUX: generate 1024x1024
         FLUX-->>W: image
-        W->>R2: store as JPEG, keyed by slugify(title)
+        W->>R2: store as JPEG, keyed by slugify(dishKey)
     end
     W-->>App: image URL
 ```
@@ -88,7 +88,7 @@ sequenceDiagram
 src/index.ts          fetch handler — routes, auth, rate limit, request/response validation
 src/prompt.ts          the system prompt (rioplatense Spanish, voseo, Argentine
                         ingredient vocabulary — see CLAUDE.md "Prompt requirements")
-src/images.ts          R2 cache-or-generate for dish images, keyed by slugify(title)
+src/images.ts          R2 cache-or-generate for dish images, keyed by slugify(dishKey)
 src/providers/
   types.ts              CardProvider interface + ProviderError
   base.ts               shared helpers across providers
