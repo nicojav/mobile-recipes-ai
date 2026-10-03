@@ -1,3 +1,5 @@
+import { ImageQuotaExceededError, imageProviders, type ImageProvider } from "./image-providers";
+
 // Generate per dish, not per card — recipes repeat constantly, so the R2 key
 // is derived from "dishKey", not the creative "title". See CLAUDE.md's Image
 // pipeline section and ADR 0002: slugify(title) used to miss the cache
@@ -13,52 +15,6 @@ export function imageKeyFor(dishKey: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "");
   return `${slug}.jpg`;
-}
-
-function base64ToBytes(base64: string): Uint8Array {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return bytes;
-}
-
-// One retry beyond the initial attempt. Observed in dev trace data: a
-// flux-1-schnell call fails outright under concurrent load (5 cards' worth of
-// generation firing near-simultaneously from handleSuggest's ctx.waitUntil
-// warm plus the client's own Image.prefetch), with no r2_put ever happening —
-// then a request for the exact same key moments later succeeds cleanly. The
-// client (expo-image) never retries a failed load on its own, so without this
-// the card is stuck on its placeholder forever even though the dish would
-// generate fine a moment later. Not retried on a quota-exceeded error —
-// there are no neurons left today, so retrying just adds latency for the
-// same guaranteed failure.
-const GENERATION_RETRY_DELAY_MS = 400;
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function generateImageOnce(env: Env, imagePrompt: string): Promise<Uint8Array> {
-  const result = await env.AI.run("@cf/black-forest-labs/flux-1-schnell", { prompt: imagePrompt });
-  if (!result.image) {
-    throw new Error("flux-1-schnell response had no image field");
-  }
-  return base64ToBytes(result.image);
-}
-
-// Cache-miss path only — callers check R2 first (see index.ts's /img route)
-// and only reach this when nothing's cached yet. flux-1-schnell has no
-// width/height input (fixed at a 512x512 tile, matching CLAUDE.md's free-tier
-// neuron accounting) and returns base64-encoded JPEG in an `image` field —
-// verified against Cloudflare's current model docs, not assumed.
-export async function generateImage(env: Env, imagePrompt: string): Promise<Uint8Array> {
-  try {
-    return await generateImageOnce(env, imagePrompt);
-  } catch (err) {
-    if (isQuotaExceededError(err)) throw err;
-    await delay(GENERATION_RETRY_DELAY_MS);
-    return generateImageOnce(env, imagePrompt);
-  }
 }
 
 // In-flight generation dedupe, keyed by R2 key. Without this, the Worker's
@@ -84,14 +40,35 @@ const DAILY_NEURON_BUDGET = 10_000;
 export const ESTIMATED_DAILY_IMAGE_LIMIT = Math.floor(DAILY_NEURON_BUDGET / NEURONS_PER_IMAGE);
 
 let generatedThisSession = 0;
-// Sticky once true — cleared on the next successful generation, not on a
-// non-quota failure, so a single unrelated FLUX error doesn't silently drop
-// the "we're out for today" signal.
-let quotaExceeded = false;
+
+// Per-provider "out until" timestamps (ms). A quota error marks a provider
+// exhausted until the next UTC midnight, when Cloudflare's daily allocation
+// resets; transient errors never set this. In-memory per isolate: a fresh
+// isolate may waste one failing call re-learning it, which isn't worth a
+// KV/D1 binding to avoid. Replaces a single sticky boolean that was only
+// cleared by a later success — which could never happen once the provider was
+// being skipped.
+const exhaustedUntil = new Map<string, number>();
+
+function nextUtcMidnight(now: number): number {
+  const d = new Date(now);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1);
+}
+
+function isExhausted(provider: ImageProvider, now: number): boolean {
+  const until = exhaustedUntil.get(provider.name);
+  if (until === undefined) return false;
+  if (now >= until) {
+    exhaustedUntil.delete(provider.name);
+    return false;
+  }
+  return true;
+}
 
 export interface ImageUsageSnapshot {
   generatedThisSession: number;
   estimatedDailyLimit: number;
+  // True when every provider in the chain is currently marked exhausted.
   quotaExceeded: boolean;
   devGenerationSkipped: boolean;
 }
@@ -105,32 +82,24 @@ function isDevGenerationSkipped(env: Env): boolean {
 }
 
 export function imageUsageSnapshot(env: Env): ImageUsageSnapshot {
+  const now = Date.now();
   return {
     generatedThisSession,
     estimatedDailyLimit: ESTIMATED_DAILY_IMAGE_LIMIT,
-    quotaExceeded,
+    quotaExceeded: imageProviders.every((p) => isExhausted(p, now)),
     devGenerationSkipped: isDevGenerationSkipped(env),
   };
 }
 
-// Thrown instead of calling FLUX when generation was deliberately not
-// attempted — the dev toggle above, or a known-exhausted quota (see the
-// quotaExceeded short-circuit in ensureImage below). handleImage answers
-// this with 404 ("no image available"), not 502 ("upstream error") — the
-// Worker chose not to attempt, it didn't fail unexpectedly.
+// Thrown instead of generating when generation was deliberately not
+// attempted — the dev toggle above, or every provider known-exhausted (see
+// generateViaChain below). handleImage answers this with 404 ("no image
+// available"), not 502 ("upstream error") — the Worker chose not to attempt,
+// it didn't fail unexpectedly.
 export class ImageGenerationSkipped extends Error {
   constructor(public readonly reason: "dev-toggle" | "quota-exceeded") {
     super(`image generation skipped (${reason})`);
   }
-}
-
-// Matches Workers AI's own error code for this condition (confirmed against
-// the real error text: "4006: you have used up your daily free allocation of
-// 10,000 neurons...") rather than the English sentence, which Cloudflare
-// could reword without changing the code. Best-effort — this only feeds a
-// debug counter, not anything correctness-critical.
-function isQuotaExceededError(err: unknown): boolean {
-  return err instanceof Error && /\b4006\b/.test(err.message);
 }
 
 // R2-check → generate → store, shared by handleImage's lazy path and the
@@ -145,27 +114,12 @@ export async function ensureImage(env: Env, key: string, imagePrompt: string): P
   if (isDevGenerationSkipped(env)) {
     throw new ImageGenerationSkipped("dev-toggle");
   }
-  // Known-exhausted for today — skip the guaranteed-failing round trip
-  // instead of repeating it on every subsequent cache miss. Cleared on the
-  // next successful generation (see the flag's own comment above); a fresh
-  // isolate also starts with this false, so it's self-healing across
-  // recycles even though it isn't Cloudflare's authoritative quota state.
-  if (quotaExceeded) {
-    throw new ImageGenerationSkipped("quota-exceeded");
-  }
 
   let pending = inFlight.get(key);
   if (!pending) {
     pending = (async () => {
       try {
-        const bytes = await generateImage(env, imagePrompt);
-        generatedThisSession++;
-        quotaExceeded = false;
-        await env.RECIPE_IMAGES.put(key, bytes, { httpMetadata: { contentType: "image/jpeg" } });
-        return bytes;
-      } catch (err) {
-        if (isQuotaExceededError(err)) quotaExceeded = true;
-        throw err;
+        return await generateViaChain(env, key, imagePrompt);
       } finally {
         inFlight.delete(key);
       }
@@ -173,4 +127,38 @@ export async function ensureImage(env: Env, key: string, imagePrompt: string): P
     inFlight.set(key, pending);
   }
   return pending;
+}
+
+// Tries each provider in order, skipping any known-exhausted for today
+// instead of repeating a guaranteed-failing round trip. A quota error marks
+// that provider out and falls through to the next; any other error also falls
+// through, and the last one is rethrown if nothing succeeds. If no provider
+// produced an image and every one is exhausted, that's a deliberate "no image
+// available", not an upstream failure.
+async function generateViaChain(env: Env, key: string, imagePrompt: string): Promise<Uint8Array> {
+  let lastError: unknown;
+  for (const provider of imageProviders) {
+    const now = Date.now();
+    if (isExhausted(provider, now)) continue;
+    try {
+      const bytes = await provider.generate(env, imagePrompt);
+      generatedThisSession++;
+      // `source` lets a lower-quality fallback image be found and replaced by
+      // hand later; there's deliberately no auto-upgrade job.
+      await env.RECIPE_IMAGES.put(key, bytes, {
+        httpMetadata: { contentType: "image/jpeg" },
+        customMetadata: { source: provider.name },
+      });
+      return bytes;
+    } catch (err) {
+      if (err instanceof ImageQuotaExceededError) {
+        exhaustedUntil.set(provider.name, nextUtcMidnight(now));
+      }
+      lastError = err;
+    }
+  }
+  if (lastError === undefined || imageProviders.every((p) => isExhausted(p, Date.now()))) {
+    throw new ImageGenerationSkipped("quota-exceeded");
+  }
+  throw lastError;
 }
