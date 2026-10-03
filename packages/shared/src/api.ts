@@ -54,6 +54,13 @@ export type Ingredient = z.infer<typeof Ingredient>;
 // output — one source of truth for the card shape on both sides.
 export const Card = z.object({
   title: z.string(),
+  // A canonical, lowercase dish name the model keeps stable across calls for
+  // the same dish concept, even as "title" varies creatively. The Worker
+  // slugs this (not "title") for the R2 image cache key — see
+  // apps/worker/src/images.ts's imageKeyFor and CLAUDE.md's Image pipeline
+  // section (ADR 0002): Groq's non-deterministic sampling made slugify(title)
+  // a near-100% cache miss even for the exact same dish.
+  dishKey: z.string(),
   description: z.string(),
   minutes: z.number(),
   effort: Effort,
@@ -93,9 +100,13 @@ export type CardWithImage = z.infer<typeof CardWithImage>;
 // after parsing the response, before it's threaded through Deck → Detail →
 // save. Absent on every row saved before this field existed ⇒ treated as
 // "comida" at read time (see apps/mobile/src/app/saved.tsx).
-export type StoredCard = Omit<CardWithImage, "calories"> & {
+export type StoredCard = Omit<CardWithImage, "calories" | "dishKey"> & {
   calories?: number;
   category?: SuggestRequest["category"];
+  // Added after the first release (ADR 0002) — same back-compat treatment as
+  // "calories" above. Rows saved before this field existed have no
+  // "dishKey" in their stored JSON.
+  dishKey?: string;
 };
 
 export const SuggestResponse = z.object({

@@ -59,7 +59,7 @@ async function handleSuggest(request: Request, env: Env, ctx: ExecutionContext):
     // response, and again (deduped) whenever the client actually requests
     // the URL in handleImage. See CLAUDE.md's Image pipeline section.
     const cardsWithImages = cards.map((card) => {
-      const key = imageKeyFor(card.title);
+      const key = imageKeyFor(card.dishKey);
       ctx.waitUntil(
         ensureImage(env, key, card.imagePrompt).catch(() => {
           // A failed early warm just means handleImage generates it fresh
