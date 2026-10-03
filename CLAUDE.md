@@ -389,19 +389,26 @@ before touching any screen's styling.
 
    When a 5-card batch runs out, Deck stops at a **cuisine interstitial**
    (`CuisineInterstitial`, `apps/mobile/src/components/cuisine-interstitial.tsx`)
-   before loading the next one: a slot-machine "roulette" reel defaulting to
-   `🇦🇷 Argentina`, a primary `Girar` button that spins through a fixed
-   country pool and — once landed — turns into `Sí, dale con {país}`, and an
-   equally-weighted secondary button, `Seguí en Argentina`, always visible
-   (not a text link — an earlier pass had it as one and it read as an
-   afterthought). Picking a country fetches fresh with the country stuffed
-   into the existing free-text `notes` field — no API/schema change, since
-   `notes` is already passed through verbatim. There's nothing to discard
-   first: as of the Prefetching section below, nothing is prefetched ahead of
-   the interstitial, so every batch boundary (same cuisine or a new one)
-   costs exactly one provider call. See principle 4 above: this is the one
+   before loading the next one: a medallion defaulting to Argentina, a
+   primary `Girar` button that spins through a fixed country pool and —
+   once landed — turns into `Sí, dale con {país}`, and an equally-weighted
+   secondary button, `Seguí en Argentina`, always visible (not a text link —
+   an earlier pass had it as one and it read as an afterthought). Picking a
+   country fetches fresh with the country stuffed into the existing
+   free-text `notes` field — no API/schema change, since `notes` is already
+   passed through verbatim. There's nothing to discard first: as of the
+   Prefetching section below, nothing is prefetched ahead of the
+   interstitial, so every batch boundary (same cuisine or a new one) costs
+   exactly one provider call. See principle 4 above: this is the one
    deliberate exception to the Argentine-only repertoire, and it's opt-in
    per batch, not a standing preference.
+
+   The roulette is the only affordance at first; a manual country picker
+   (a horizontal row of flag avatars below the medallion) earns itself in
+   after a ~6s idle wait, animated as a ring filling around the medallion
+   rather than a separate progress bar. This came out of a `/prototype`
+   session — see the redesign entry under "Decisions already made" for what
+   it replaced and why.
 3. **Detalle** — full ingredient list with check/dash per item, numbered steps,
    `Guardar` and `La cociné`.
 4. **Guardadas** — saved recipes list.
@@ -585,6 +592,31 @@ Score each batch of five on:
   serializing them (~75s to fill a batch) — more complexity than the local
   skip needed to solve the actual problem. See
   `plans/adr/0001-dev-image-generation-toggle.md` for the full rationale.
+- The cuisine interstitial's design (medallion + wait-to-unlock ring + real
+  vector flags) replaced an earlier version: a horizontal text-reel cycling
+  `flag emoji + country name`, with the manual country picker available
+  immediately rather than earned in. Settled through a `/prototype` UI
+  session with several rejected stops along the way:
+  - **Manual-picker-always-visible was rejected outright** ("i don't like
+    any of them") in favor of gating it behind the roulette — the roulette
+    had to stay the only affordance at first, with the picker earning itself
+    in rather than being one option among several from the start. Landed on
+    a ~6s idle-time unlock (not spin-count-based) after also trying that.
+  - **Flag emoji were rejected** ("looks cheesy... doesn't need to be flags")
+    once sitting in the real layout — not because flags were the wrong
+    concept, but because the system emoji font renders inconsistently (and
+    sometimes poorly) across devices. A flag-free country-code monogram, a
+    signature-dish line icon (matching the app's own `icons.tsx` style —
+    tried on the theory that a food app should represent the cuisine, not
+    the country), and a plain color-only mark (a control condition, no
+    symbol at all) were all prototyped alongside real vector flags
+    (`apps/mobile/src/components/country-flag.tsx`) — flags won once drawn
+    as actual shapes instead of relying on the font.
+  - **Repeat-country weighting**: once a country lands, it becomes ~1/7th as
+    likely (not impossible) on the very next spin — filtering it out
+    entirely would visibly shrink the pool after a few spins and eventually
+    make a country "unspinnable." Only applies to the roulette's own random
+    pick, never to a country tapped directly once the picker unlocks.
 - The app is named **Potlucky**, English, deliberately — even though testing
   is Argentina-only right now and the UI is `es-AR`. A US/English release is
   planned later, and "potluck" already means, in English, a meal made from

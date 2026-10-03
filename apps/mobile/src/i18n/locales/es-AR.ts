@@ -54,11 +54,14 @@ export const esAR = {
     previous: "Anterior",
     next: "Siguiente",
     cuisine: {
-      headline: "Probá suerte con la próxima tanda",
+      eyebrow: "Ruleta de cocinas",
       spin: "🎲 Girar",
       spinning: "Girando…",
       confirm: "Sí, dale con {{country}}",
       keepCurrent: "Seguí en {{country}}",
+      // Shown once the manual country picker unlocks below the roulette —
+      // see CuisineInterstitial's own comment for the unlock condition.
+      chooseDirectly: "O elegí directamente",
     },
   },
   detail: {
