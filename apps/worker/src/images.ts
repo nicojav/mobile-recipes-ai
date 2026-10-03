@@ -1,7 +1,12 @@
 // Generate per dish, not per card — recipes repeat constantly, so the R2 key
-// is derived from the title alone. See CLAUDE.md's Image pipeline section.
-export function imageKeyFor(title: string): string {
-  const slug = title
+// is derived from "dishKey", not the creative "title". See CLAUDE.md's Image
+// pipeline section and ADR 0002: slugify(title) used to miss the cache
+// almost every time for the same dish, since Groq's non-deterministic
+// sampling rarely reproduces the same title text twice. "dishKey" is the
+// field the model is instructed to hold stable across calls for the same
+// dish (see prompt.ts); "title" stays free to vary.
+export function imageKeyFor(dishKey: string): string {
+  const slug = dishKey
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
