@@ -36,6 +36,13 @@ export const SuggestRequest = z.object({
   // reinterpret a `notes` sentence. Doesn't touch the Card response schema —
   // a request-side addition only.
   category: z.enum(["comida", "reposteria"]).optional().default("comida"),
+  // The country the user picked on the cuisine interstitial, sent *alongside*
+  // the same hint already stuffed into `notes` (the prompt is unchanged). It
+  // exists only so the Worker can tell a cuisine pick apart without sniffing
+  // Spanish copy: the stored-recipe corpus has no cuisine tag, so serving it
+  // for a "Japón" request would hand back Argentine dishes the user
+  // explicitly asked not to see. Set ⇒ the corpus fallback is skipped.
+  cuisine: z.string().optional(),
 });
 export type SuggestRequest = z.infer<typeof SuggestRequest>;
 
@@ -115,5 +122,10 @@ export const SuggestResponse = z.object({
   // SuggestRequest, and the two-call batch split under Prefetching in
   // CLAUDE.md).
   cards: z.array(CardWithImage).min(1).max(CARD_COUNT),
+  // Where these cards came from. "corpus" means live generation was degraded
+  // (Groq 429/5xx) and the Worker served previously-generated dishes from D1
+  // instead. Nothing in the app reads it — it's for logs and the harness, not
+  // UI. Absent ⇒ "live".
+  source: z.enum(["live", "corpus"]).optional(),
 });
 export type SuggestResponse = z.infer<typeof SuggestResponse>;

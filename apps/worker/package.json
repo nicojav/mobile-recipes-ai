@@ -6,7 +6,8 @@
     "dev": "wrangler dev --ip 0.0.0.0",
     "deploy": "wrangler deploy",
     "cf-typegen": "wrangler types",
-    "harness": "tsx harness/run.ts"
+    "harness": "tsx harness/run.ts",
+    "corpus:check": "tsx harness/corpus-check.ts"
   },
   "dependencies": {
     "@mobile-recipes/shared": "*",
