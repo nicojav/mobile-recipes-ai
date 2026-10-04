@@ -40,7 +40,9 @@ import { Spacing, BottomTabInset, MaxContentWidth, Radius } from '@/constants/th
 import { useTheme } from '@/hooks/use-theme';
 // The post-batch "want another country's cuisine?" interstitial — see
 // CLAUDE.md's "Decisions already made" for why this is a deliberate, opt-in
-// exception to principle 4 (Argentine authenticity).
+// exception to principle 4 (Argentine authenticity). Its current design (a
+// medallion + wait-to-unlock ring + real vector flags, instead of an earlier
+// text-reel-plus-emoji version) came out of a `/prototype` UI session.
 import { CuisineInterstitial, type Country } from '@/components/cuisine-interstitial';
 
 const SWIPE_THRESHOLD = 120;
@@ -107,6 +109,17 @@ export default function DeckScreen() {
   // context of its own, and without this it would silently drop a country
   // batch back to the Argentine default.
   const activeNotesOverride = useRef<string | undefined>(undefined);
+  // The country the user last actually picked via the interstitial, lifted
+  // up here (not held in CuisineInterstitial's own state) specifically
+  // because that component remounts fresh — via `key={interstitialKey}`
+  // below — every time the deck runs out of cards. Without lifting it, the
+  // "next spin should slow down on a repeat" feature (see
+  // cuisine-interstitial.tsx's pickWeightedCountry) would reset itself into
+  // never firing on every single batch boundary. State, not a ref, for the
+  // same reason interstitialKey above is state — it's read during render (as
+  // a prop to CuisineInterstitial), and a ref's `.current` can't be read
+  // during render under this project's React Compiler lint rules.
+  const [lastCuisineCountry, setLastCuisineCountry] = useState<Country | null>(null);
   // The country behind activeNotesOverride, kept for the same reason — a retry
   // must resend it, or a country batch's retry could be answered from the
   // Worker's Argentine-only stored-recipe fallback.
@@ -232,6 +245,7 @@ export default function DeckScreen() {
   const chooseLuckyCuisine = useCallback(
     (country: Country) => {
       const hint = `${notes} Che, tirame algo de cocina ${country.name} para variar hoy.`.trim();
+      setLastCuisineCountry(country); // see the state's own comment above.
       startBatch(hint, country.name);
     },
     [notes, startBatch],
@@ -303,7 +317,12 @@ export default function DeckScreen() {
         {status === 'error' && <ErrorView onRetry={retry} />}
         {status === 'choosing' && (
           <View style={styles.cardArea}>
-            <CuisineInterstitial key={interstitialKey} onContinue={resumeSameCuisine} onLucky={chooseLuckyCuisine} />
+            <CuisineInterstitial
+              key={interstitialKey}
+              onContinue={resumeSameCuisine}
+              onLucky={chooseLuckyCuisine}
+              lastCountry={lastCuisineCountry}
+            />
           </View>
         )}
         {status === 'ready' && current && (
